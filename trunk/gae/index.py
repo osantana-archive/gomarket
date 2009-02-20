@@ -1,6 +1,7 @@
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext import db
+import simplejson
 
 class Country(db.Model):
     name = db.StringProperty()
@@ -120,49 +121,61 @@ def newProduct(self, *args, **kwargs):
 # Request Handlres.
 class HandleIndex(webapp.RequestHandler):
     def get(self):
-        response.out.write('<H1>GoMarket is used for Nokia S60 devices!!</H1>')
+        self.response.out.write('<H1>GoMarket is used for Nokia S60 devices!!</H1>')
+
+class HandleCountry(webapp.RequestHandler):
+    def get(self):
+        key = self.request.get("key")
+        country = db.get(key)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(country))
+
+class HandleState(webapp.RequestHandler):
+    def get(self):
+        key = self.request.get("key")
+        state = db.get(key)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(state))
+
+class HandleCity(webapp.RequestHandler):
+    def get(self):
+        key = self.request.get("key")
+        city = db.get(key)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(city))
 
 class HandleAddress(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
         address = db.get(key)
-        response.out.write('"%s","%s","%s","%s","%s"' %
-            address.description,
-            address.city,
-            address.state,
-            address.ean13_prefix,
-            address.country
-        )
-
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(address))
 
 class HandleMarket(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
 
         market = db.get(key)
-        response.out.write('"%s","%s","%s","%s","%s","%s"' %
-            market.name
-            market.address.description,
-            market.address.city,
-            market.address.state,
-            market.address.ean13_prefix,
-            market.address.country
-        )
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(market))
 
 class HandleProduct(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
         product = db.get(key)
-
-        response.out.write('"%s",%s,"%s"' % \
-              (prod.market.name,
-               prod.price,
-               prod.description))
-
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(product))
 
 application = webapp.WSGIApplication(
-                                     [('/', HandleIndex),],
-                                     debug=True)
+                                     [('/', HandleIndex),
+                                      ('^country/(?<key>\d)$', HandleCountry),
+                                      ('^state/(?<key>\d)$', HandleState),
+                                      ('^city/(?<key>\d)$', HandleCity),
+                                      ('^address/(?<key>\d)$', HandleAddress),
+                                      ('^market/(?<key>\d)$', HandleMarket),
+                                      ('^product/(?<key>\d)$', HandleProduct),
+                                      ],
+                                      debug=True)
 
 def main():
     run_wsgi_app(application)
