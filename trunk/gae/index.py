@@ -2,12 +2,23 @@ from google.appengine.ext import webapp
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext import db
 
+class Country(db.Model):
+    name = db.StringProperty()
+    abreviation = db.StringProperty()
+    ean13_prefix = db.StringProperty()
+
+class State(db.Model):
+    name = db.StringProperty()
+    abreviation = db.StringProperty()
+    country = db.ReferenceProperty(Country)
+
+class City(db.Model):
+    name = db.StringProperty()
+    state = db.ReferenceProperty(State)
+
 class Address(db.Model):
     description = db.StringProperty()
-    city = db.StringProperty()
-    state = db.StringProperty()
-    ean13_prefix = db.StringProperty()
-    country = db.StringProperty()
+    city = db.ReferenceProperty(City)
 
 class Market(db.Model):
     name = db.StringProperty()
@@ -19,67 +30,92 @@ class Product(db.Model):
     market = db.ReferenceProperty(Market)
 
 # Functions used in various handlers.
-def getAddress(self, *args, **kwargs):
+def getByName(self, *args, **kwargs):
+    name = kwargs.get('name')
+    modelClass = kwargs.get('modelClass')
+    q = modelClass.all()
+    q.filter('name=',name)
+    result = q.fetch(1)
+    return result
+
+def getByKey(self, *args, **kwargs):
+    key = kwargs.get('key')
+    modelClass = kwargs.get('modelClass')
+    q = modelClass.all()
+    q.get(key)
+    result = q.fetch(1)
+    return result
+
+def getByDescription(self, *args, **kwargs):
     description = kwargs.get('description')
-    qAddress = Address.all()
-    qAddress.filter('description=',description)
-    a = qAddress.fetch(1)
-    return a
+    modelClass = kwargs.get('modelClass')
+    q = modelClass.all()
+    q.filter('description=',description)
+    result = q.fetch(1)
+    return result
+
+def newCountry(self, *args, **kwargs):
+    name = kwargs.get("name")
+    abreviation = kwargs.get("abreviation")
+    ean13_prefix = kwargs.get("ean13_prefix")
+    country = Country(name=name,
+                      abreviation=abreviation,
+                      ean13_prefix=ean13_prefix,
+                      )
+    db.put(country)
+    return country
+
+def newState(self, *args, **kwargs):
+    name = kwargs.get("name")
+    abreviation = kwargs.get("abreviation")
+    country = kwargs.get("country")
+    state = State(name=name,
+                  abreviation=abreviation,
+                  ean13_prefix,
+                 )
+    db.put(state)
+    return state
+
+def newCity(self, *args, **kwargs):
+    name = kwargs.get("name")
+    state = kwargs.get("state")
+    city = City(name=name,
+                state=state,
+               )
+    db.put(city)
+    return city
 
 def newAddress(self, *args, **kwargs):
-    address_desc = kwargs.get("address_desc")
-    address_city = kwargs.get("address_city")
-    address_state = kwargs.get("address_state")
-    address_ean13_prefix = kwargs.get("address_ean13_prefix")
-    address_country = kwargs.get("address_country")
-    address = Address(description=address_desc,
-                      city=address_city,
-                      state=address_state,
-                      ean13_prefix=address_ean13_prefix,
-                      country=address_country)
-    return self.address
-
-def getMarket(self, *args, **kwargs):
-    market_name = kwargs.get('market_name')
-    qMarket = Market.all()
-    qMarket.filter('name=',market_name)
-    m = qMarket.fetch(1)
-    return m
+    description = kwargs.get("description")
+    city = kwargs.get("city")
+    address = Address(description=description,
+                      city=city,
+                     )
+    db.put(address)
+    return address
 
 def newMarket(self, *args, **kwargs):
-    market_name = kwargs.get("market_name")
-    address_desc = kwargs.get("address_desc")
-    address_city = kwargs.get("address_city")
-    address_state = kwargs.get("address_state")
-    address_ean13 = kwargs.get("address_ean13")
-    address_country = kwargs.get("address_country")
-    address = self.getAddress(description=address_desc)
-    if not address:
-        address = self.newAddress(
-            address_desc=address_desc,
-            address_city=address_city,
-            address_state=address_state,
-            address_ean13_prefix=address_ean13_prefix,
-            address_country=address_country
-        )
+    name = kwargs.get("name")
+    address = kwargs.get("address")
     m = Market(
-        name=market_name,
-        address=address
+        name=name,
+        address=address,
     )
+    db.put(m)
     return m
 
 def newProduct(self, *args, **kwargs):
-    market_name = kwargs.get('market_name')
     description = kwargs.get('description')
     price = kwargs.get('price')
-    m = self.getMarket(market_name=market_name)
+    market = kwargs.get('market')
     p = Product(
             description=description,
             price=price,
-            market=m)
+            market=market)
     db.put(p)
     return p
 
+#TODO: post, json, search, urls
 #----------------------------------------------------------------------------#
 # Request Handlres.
 class HandleIndex(webapp.RequestHandler):
@@ -88,8 +124,8 @@ class HandleIndex(webapp.RequestHandler):
 
 class HandleAddress(webapp.RequestHandler):
     def get(self):
-        description = self.request.get("description")
-        address = getAddress(description=description)
+        key = self.request.get("key")
+        address = db.get(key)
         response.out.write('"%s","%s","%s","%s","%s"' %
             address.description,
             address.city,
@@ -101,9 +137,9 @@ class HandleAddress(webapp.RequestHandler):
 
 class HandleMarket(webapp.RequestHandler):
     def get(self):
-        market_name = self.request.get("market_name")
+        key = self.request.get("key")
 
-        market = getMarket(market_name=market_name)
+        market = db.get(key)
         response.out.write('"%s","%s","%s","%s","%s","%s"' %
             market.name
             market.address.description,
@@ -115,33 +151,8 @@ class HandleMarket(webapp.RequestHandler):
 
 class HandleProduct(webapp.RequestHandler):
     def get(self):
-        description = self.request.get("prod_description")
-        price = self.request.get("prod_price")
-        market_name = self.request.get("market_name")
-        address_desc = self.request.get("address_desc")
-        address_city = self.request.get("address_city")
-        address_state = self.request.get("address_state")
-        address_ean13_prefix = self.request.get("address_ean13_prefix")
-        address_country = self.request.get("address_country")
-        phone_imei = self.request.get("imei") # NOT USING YET. #TODO
-        if address_desc:
-            m = self.newMarket(market_name=market_name,
-                              address_desc=address_desc,
-                              address_city=address_city,
-                              address_state=address_state,
-                              address_ean13_prefix=address_ean13_prefix,
-                              address_country=address_country)
-        else:
-            qProduct = Product.all()
-            qProduct.filter('price=',price)
-            qProduct.filter('description=',description)
-            qProduct.filter('market.name',market_name)
-            prod = qProduct.fetch(1)
-
-        if not prod:
-            prod = newProduct(market_name=market_name,
-                              description=description,
-                              price=price)
+        key = self.request.get("key")
+        product = db.get(key)
 
         response.out.write('"%s",%s,"%s"' % \
               (prod.market.name,
