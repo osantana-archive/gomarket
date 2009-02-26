@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 # encoding: utf-8
+# SIS file infos:
+# SYMBIAN_UID = 0xe89c6eaf
+# SIS_VERSION = "0.1.0"
+
 
 import os
 import sys
@@ -448,7 +452,7 @@ class MainApp(skel.AppSkel):
             version=u"0.1",
             year=u'2009',
             authors=[ u"Osvaldo Santana Neto", u"Ramiro Luz" ],
-            icon="E:\\Python\\gomarket_icon.png",
+            icon="E:\\Python\\icon.png",
             license=u"MIT License",
         )
 
