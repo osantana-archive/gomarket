@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>s60/gomarket.py</string>
+	<string>utils/create_sis.sh</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -21,19 +21,19 @@
 	<integer>200</integer>
 	<key>metaData</key>
 	<dict>
-		<key>s60/gomarket.py</key>
+		<key>s60/default.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
 				<integer>0</integer>
 				<key>line</key>
-				<integer>583</integer>
+				<integer>5</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>543</integer>
+			<integer>0</integer>
 		</dict>
 		<key>s60/skel.py</key>
 		<dict>
@@ -42,31 +42,46 @@
 				<key>column</key>
 				<integer>0</integer>
 				<key>line</key>
-				<integer>87</integer>
+				<integer>37</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>72</integer>
+			<integer>1</integer>
 		</dict>
 		<key>s60/test_info.py</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>24</integer>
 				<key>line</key>
-				<integer>47</integer>
+				<integer>45</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>7</integer>
+			<integer>8</integer>
+		</dict>
+		<key>utils/create_sis.sh</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>0</integer>
+				<key>line</key>
+				<integer>12</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>0</integer>
 		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>s60/gomarket.py</string>
+		<string>utils/create_sis.sh</string>
+		<string>s60/default.py</string>
 		<string>s60/skel.py</string>
 		<string>s60/test_info.py</string>
 	</array>

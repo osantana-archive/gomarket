@@ -3,3 +3,40 @@ All you can think put in this file, please. :)
   - search, query string "search=sometext" returns a list off objects.
   - list, list off objects, maybe all with a kind off paginator.
   - create country, state and city objects based on public databases.
+
+
+Requests:
+
+GET
+---
+/countries/ - returns a JSON 'dict' with: { country_key: country_name }
+/states/{country_key}/ - returns a JSON 'dict' with: { state_key: state_name }
+/cities/{state_key}/ - returns a JSON 'dict' with: { city_key: city_name }
+/stores/{city_key}/ - returns a JSON 'dict' with: { store_key: store_name + '\n' + store_address }
+
+/prices/?barcode=XXXXXXXXXXX&price=X.XX&description=XXXXX -
+Put this info in our database (validate barcode and price!=0) and returns a JSON 'list' with:
+    [
+        [ store_name1, price1 ],
+        [ store_name2, price2 ],
+        :
+        [ store_nameN, priceN ],
+   ]
+
+ordered by price.
+
+
+POST
+----
+/(countries|states|cities)/
+    - send ->
+        field: (country|state|city)_name 
+        field: parent_key (ex. country_key to add a state or state_key to add city)
+    - response -> JSON string with the new (country|state|city) key
+/stores/
+    - send ->
+        field: store_description with unicode(store_name + '\n' + store_address)
+        field: parent_key (in this case the city_key)
+    - response -> JSON string with the new store key
+
+
