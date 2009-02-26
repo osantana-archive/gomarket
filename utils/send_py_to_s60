@@ -1,0 +1,132 @@
+#!/usr/bin/env python
+# send_py_to_s60 - send files in a directory to S60 device using
+#                  a bluetooth connection.
+# Copyright (C) 2009  Osvaldo Santana Neto <osantana@triveos.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+from __future__ import with_statement
+
+import os
+import sys
+import uuid
+import optparse
+
+import lightblue
+
+FTP_TARGET_UUID = uuid.UUID("{F9EC7BC4-953C-11D2-984E-525400DC9E09}").bytes
+INTERNAL_CACHE = {
+    'turing': "00:1C:35:C2:62:E2",
+}
+
+# TODO: configure this path via command line argument.
+DST_ROOT = "E:\\Python\\"
+
+class Client(object):
+    def __init__(self, device, channel):
+        self.client = lightblue.obex.OBEXClient(device, channel)
+
+    def connect(self):
+        self.client.connect({'target': FTP_TARGET_UUID})
+
+    def disconnect(self):
+        self.client.disconnect()
+
+    def setpath(self, path):
+        response = self.client.setpath({'name': path})
+        if response.code == lightblue.obex.PRECONDITION_FAILED:
+            print >>sys.stderr, "OBEX error: %s." % (response,)
+
+    def _prepare_path(self, path):
+        splited_path = path.split('\\')
+        self.setpath("")
+        for directory in splited_path[:-1]:
+           self.setpath(directory)
+        return splited_path[-1]
+
+    def mkdir(self, path):
+        dirname = self._prepare_path(path)
+        response = self.client.setpath({'name': dirname}, createdirs=True)
+        if response.code == lightblue.obex.PRECONDITION_FAILED:
+            print >>sys.stderr, "OBEX error: %s." % (response,)
+
+
+    def put(self, src, dest):
+        filename = self._prepare_path(dest)
+        with open(src, "rb") as f:
+            response = self.client.put({'name': filename}, f)
+        if response.code == lightblue.obex.PRECONDITION_FAILED:
+            print >>sys.stderr, "OBEX error: %s." % (response,)
+
+def main():
+    parser = optparse.OptionParser()
+    parser.add_option("-d", "--device", dest="device", help="Select destination device")
+    parser.add_option("-i", "--ignore-cache", action="store_true", dest="ignore_cache", help="Select destination device")
+    options, args = parser.parse_args()
+
+    if not options.device:
+        device, name, dev_id = lightblue.selectdevice()
+    else:
+        if ':' not in options.device:
+            if not options.ignore_cache and options.device in INTERNAL_CACHE:
+                device = INTERNAL_CACHE[options.device]
+            else:
+                devices = lightblue.finddevices(getnames=True)
+                for device, name, dev_id in devices:
+                    if name == options.device:
+                        break
+                else:
+                    parser.error("No device found.")
+                    return 1
+        else:
+            device = options.device
+
+    try:
+        services = lightblue.findservices(device)
+        for device, channel, description in services:
+            if description and 'nokia obex' in description.lower():
+                break
+        else:
+            parser.error("Service 'Nokia OBEX...' not found.")
+            return 2
+
+        client = Client(device, channel)
+        client.connect()
+
+        # walk...
+        try:
+            src_dir = args[0]
+        except IndexError, e:
+            parser.error("Source directory expected.")
+            return 3
+
+        dst_root = DST_ROOT
+        for root, dirs, files in os.walk(src_dir):
+            for dirname in dirs:
+                dst = os.path.join(root, dirname).replace(src_dir, dst_root).replace(os.sep, "\\")
+                client.mkdir(dst)
+
+            for filename in files:
+                dst = os.path.join(root, filename).replace(src_dir, dst_root).replace(os.sep, "\\")
+                client.put(os.path.join(root, filename), dst)
+
+        client.disconnect()
+    except Exception, e:
+            parser.error("Error connecting device %s (%s)." % (options.device, e))
+            return 3
+
+if __name__ == "__main__":
+    sys.exit(main())
+

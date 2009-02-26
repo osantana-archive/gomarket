@@ -1,24 +1,28 @@
 # encoding: utf-8
 
-import e32
-import appuifw
-import topwindow
-import graphics
+import e32       # pylint: disable-msg=F0401
+import appuifw   # pylint: disable-msg=F0401
+import topwindow # pylint: disable-msg=F0401
+import graphics  # pylint: disable-msg=F0401
+
+TAB_TITLE = 0
+TAB_CREATE_BODY = 1
+TAB_CREATE_MENU = 2
+TAB_BODY = 3
+TAB_MENU = 4
 
 class AppSkel(object):
-    _TAB_TITLE = 0
-    _TAB_CREATE_BODY = 1
-    _TAB_CREATE_MENU = 2
-    _TAB_BODY = 3
-    _TAB_MENU = 4
 
     selected_tab = 0
 
     def __init__(self):
         # initialization
-        self.init()
-
         self._mainlock = e32.Ao_lock()
+        self._about_lock = e32.Ao_lock()
+        self._old_exit = None
+        self._old_menu = None
+        self._old_orientation = None
+        self._about_window = None
 
         # tabs
         self._tabs = []
@@ -64,9 +68,9 @@ class AppSkel(object):
     def _create_menu(self):
         menu = list(self.menu())
         if hasattr(self, 'menu_help'):
-            menu.append( (u'Help', self.menu_help) )
+            menu.append( (u'Help', getattr(self, 'menu_help')) )
         if hasattr(self, 'menu_about'):
-            menu.append( (u'About', self.menu_about) )
+            menu.append( (u'About', getattr(self, 'menu_about')) )
         menu.append( (u'Exit', self.quit) )
         return menu
 
@@ -85,15 +89,17 @@ class AppSkel(object):
 
     def _internal_tab_callback(self, index):
         tab = self._tabs[index]
-        if tab[AppSkel._TAB_BODY] is None:
-            tab[AppSkel._TAB_BODY] = tab[AppSkel._TAB_CREATE_BODY]()
-        if tab[AppSkel._TAB_MENU] is None:
-            if tab[AppSkel._TAB_CREATE_MENU]:
-                tab[AppSkel._TAB_MENU] = tab[AppSkel._TAB_CREATE_MENU]() + self._create_menu()
+        if tab[TAB_BODY] is None:
+            tab[TAB_BODY] = tab[TAB_CREATE_BODY]()
+        if tab[TAB_MENU] is None:
+            if tab[TAB_CREATE_MENU]:
+                tab[TAB_MENU] = tab[TAB_CREATE_MENU]() + self._create_menu()
             else:
-                tab[AppSkel._TAB_MENU] = self._create_menu()
-        appuifw.app.body = tab[AppSkel._TAB_BODY]
-        appuifw.app.menu = tab[AppSkel._TAB_MENU]
+                tab[TAB_MENU] = self._create_menu()
+        if tab[TAB_BODY]:
+            appuifw.app.body = tab[TAB_BODY]
+        if tab[TAB_MENU]:
+            appuifw.app.menu = tab[TAB_MENU]
 
     def activate_tab(self, index):
         self._internal_tab_callback(index)
@@ -107,20 +113,20 @@ class AppSkel(object):
     title = property(_get_title, _set_title)
 
     def _center_text(self, d_canvas, y, msg, font='dense'):
-        box, pixels, chars = d_canvas.measure_text(msg, font=font)
+        box, _, _ = d_canvas.measure_text(msg, font=font)
         txt_size = (box[2] - box[0], box[3] - box[1])
         y += txt_size[1] + 6
-        d_canvas.text(((d_canvas.size[0]-txt_size[0])/2,y), msg, font=font)
+        d_canvas.text(((d_canvas.size[0] - txt_size[0]) / 2, y), msg, font=font)
         return y
 
-    def about_dialog(self, name, version, year, authors, icon, license):
-        self._about_lock = e32.Ao_lock()
+    def about_dialog(self, name, version, year, authors, icon, licence):
         self._old_exit = appuifw.app.exit_key_handler
         self._old_menu = appuifw.app.menu
-
-        size, pos = appuifw.app.layout(appuifw.EScreen)
-
         self._old_orientation = appuifw.app.orientation
+        self._about_window = topwindow.TopWindow()
+
+        size, _ = appuifw.app.layout(appuifw.EScreen)
+
         if appuifw.app.orientation != 'portrait': # TODO: implement dialog box for landscape UI
             appuifw.app.orientation = 'portrait'
 
@@ -134,7 +140,7 @@ class AppSkel(object):
         y = 6
 
         icon = graphics.Image.open(icon)
-        d_canvas.blit(icon, target=((d_size[0]-icon.size[0])/2,y))
+        d_canvas.blit(icon, target=((d_size[0] - icon.size[0]) / 2, y))
         y += icon.size[1]
         
         y = self._center_text(d_canvas, y, name, 'title')
@@ -142,10 +148,9 @@ class AppSkel(object):
         y = self._center_text(d_canvas, y + 6, u"Copyright © " + year, 'dense')
         for author in authors:
             y = self._center_text(d_canvas, y, author, 'dense')
-        y = self._center_text(d_canvas, y + 6, license, 'legend')
+        y = self._center_text(d_canvas, y + 6, licence, 'legend')
 
-        self._about_window = topwindow.TopWindow()
-        self._about_window.add_image(d_canvas, (0,0))
+        self._about_window.add_image(d_canvas, (0, 0))
 
         self._about_window.position = d_pos
         self._about_window.size = d_size
