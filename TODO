@@ -1,0 +1,5 @@
+All you can think put in this file, please. :)
+
+  - search, query string "search=sometext" returns a list off objects.
+  - list, list off objects, maybe all with a kind off paginator.
+  - create country, state and city objects based on public databases.
