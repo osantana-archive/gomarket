@@ -6,264 +6,176 @@ import sys
 import md5
 sys.path.append("E:\\Python")
 
-import e32dbm
-
-from skel import *
+import e32     # pylint: disable-msg=F0401
+import e32dbm  # pylint: disable-msg=F0401
+import appuifw # pylint: disable-msg=F0401
+import skel
+import test_info
 
 APP_NAME = u"gomarket"
 APP_VERSION = u"0.1"
 RESOURCE_DIR = "E:\\Python"
+DB_MODE = 'cf' # TODO: change database open mode from 'nf' -> 'cf'
 
-COUNTRIES_TEST = {
-    u'key_a': u'Brazil',
-    u'key_b': u'USA',
-}
-STATES_TEST = {
-    u'key_a': {
-        u'key_aa': u'Sao Paulo',
-        u'key_ab': u'Rio de Janeiro',
-    },
-    u'key_b': {
-        u'key_ba': u'Florida',
-        u'key_bb': u'Alabama',
-    },
-}
-CITIES_TEST = {
-    u'key_aa': {
-        u'key_aaa': u'Sao Paulo',
-        u'key_aab': u'Sao Jose do Rio Preto',
-    },
-    u'key_ab': {
-        u'key_aba': u'Rio de Janeiro',
-        u'key_abb': u'Niteroi',
-    },
-    u'key_ba': {
-        u'key_baa': u'Miami',
-        u'key_bab': u'Orlando',
-    },
-    u'key_bb': {
-        u'key_bba': u'Montgomery',
-        u'key_bbb': u'Jackson',
-    },
-}
 
-STORES_TEST = {
-    u'key_aaa': {
-        u'key_aaaa': u'Supermercado Extra Jaguare\nRua Foo',
-        u'key_aaab': u'Supermercado Extra Pinheiros\nRua Bar',
-    },
-}
+# http://www.pythonbrasil.com.br/moin.cgi/CodigoBarras
+class InvalidBarcode(Exception):
+    pass
 
-PRICES_TEST = {
-    u'key_aaab': {
-        u'978': '10.90',
-    },
-}
+def _compute_barcode_checksum(arg):
+    weight = [1, 3] * 6
+    magic = 10
+    sum_ = 0
+
+    for i in range(12):
+        sum_ += int(arg[i]) * weight[i]
+    digit = (magic - (sum_ % magic)) % magic
+    if digit < 0 or digit >= magic:
+        raise InvalidBarcode("Error validating barcode.")
+    return digit
+
+def _verify_barcode(bits):
+    if len(bits) != 13:
+        return False
+    computed_checksum = _compute_barcode_checksum(bits[:12])
+    codebar_checksum = bits[12]
+    if codebar_checksum != computed_checksum:
+        return False
+    return True
+#/
+
+
+class InvalidSetting(Exception):
+    pass
+
+class Entities(object):
+    _order = 0
+    def get_order(cls):
+        cls._order += 1
+        return cls._order - 1
+    get_order = classmethod(get_order)
+
+    def __init__(self, key, manager, database):
+        self.order = Entities.get_order()
+        self.key = key
+        self.manager = manager
+        self.cache = e32dbm.open(database, DB_MODE)
+
+    def set(self, value):
+        self.manager.set_config(self.key, value)
+        self.manager.clear(self.order + 1)
+
+    def get(self):
+        return self.manager.get_config(self.key, u'')
+
+    def get_name(self):
+        if not self.cache.has_key(self.get()):
+            return u''
+        return unicode(self.cache[self.get()])
+
+    def request_key(self):
+        if not self.order:
+            return u''
+        previous_key = self.manager.get_entity_by_order(self.order - 1).key
+        if not self.manager.get_config(previous_key, u''):
+            raise InvalidSetting(u"Please, choose a %s." % (previous_key,))
+        return self.manager.get_config(previous_key, u'')
+
+    def request(self, request_key):
+        # TODO: implement with urllib...
+        if self.key == u'country':
+            return test_info.COUNTRIES_TEST
+        elif self.key == u'state':
+            return test_info.STATES_TEST[request_key]
+        elif self.key == u'city':
+            return test_info.CITIES_TEST[request_key]
+        elif self.key == u'store':
+            return test_info.STORES_TEST[request_key]
+        else:
+            raise ValueError("Invalid entity name %s." % (self.key,))
+
+    def object_list(self):
+        if not len(self.cache):
+            self.refresh()
+        object_list = [ (unicode(k), unicode(v)) for k, v in self.cache.items() ]
+        object_list.sort(lambda x, y: cmp(x[1], y[1]))
+        return object_list
+
+    def clear(self):
+        self.cache.clear()
+        self.cache.sync()
+
+    def refresh(self):
+        self.cache.clear()
+        self.cache.update(self.request(self.request_key()))
+        self.cache.sync()
+
+    def close(self):
+        self.cache.close()
+
+    def add(self, value):
+        # TODO: urllib post and get new key...
+        key = md5.md5(value).hexdigest()
+        self.cache[unicode(key)] = unicode(value)
+        return key
 
 
 class DataManager(object):
+    MANAGER_COUNTRY = 0
+    MANAGER_STATE = 1
+    MANAGER_CITY = 2
+    MANAGER_STORE = 3
+
     def __init__(self, resourcedir):
         self.resourcedir = resourcedir
 
-        self.config = e32dbm.open(os.path.join(self.resourcedir, 'config.db'), 'nf')
-        self._cache_countries = e32dbm.open(os.path.join(self.resourcedir, 'countries.db'), 'nf')
-        # self._cache_ean_prefix = e32dbm.open(os.path.join(self.resourcedir, 'eanprefix.db'), 'nf')
-        self._cache_states = e32dbm.open(os.path.join(self.resourcedir, 'states.db'), 'nf')
-        self._cache_cities = e32dbm.open(os.path.join(self.resourcedir, 'cities.db'), 'nf')
-        self._cache_stores = e32dbm.open(os.path.join(self.resourcedir, 'stores.db'), 'nf')
+        self.config = e32dbm.open(os.path.join(resourcedir, 'config.db'), DB_MODE)
 
-    # country
-    def set_country(self, country):
-        self.config[u'country'] = country
-        self.state = u''
-        self.city = u''
-        self.store = u''
-        self._cache_states.clear()
-        self._cache_cities.clear()
-        self._cache_stores.clear()
-        self._cache_states.sync()
-        self._cache_cities.sync()
-        self._cache_stores.sync()
-    def get_country(self):
-        if not self.config.has_key(u'country'):
-            self.config[u'country'] = u''
-        return self.config[u'country']
-    country = property(get_country, set_country)
+        self.entities = [
+            Entities(u'country', self, os.path.join(resourcedir, 'countries.db')),
+            Entities(u'state', self, os.path.join(resourcedir, 'states.db')),
+            Entities(u'city', self, os.path.join(resourcedir, 'cities.db')),
+            Entities(u'store', self, os.path.join(resourcedir, 'stores.db')),
+        ]
 
-    def get_country_name(self):
-        if not self._cache_countries.has_key(self.country):
-            return u''
-        return unicode(self._cache_countries[self.country])
-    country_name = property(get_country_name)
+        self.countries = self.entities[self.MANAGER_COUNTRY]
+        self.states = self.entities[self.MANAGER_STATE]
+        self.cities = self.entities[self.MANAGER_CITY]
+        self.stores = self.entities[self.MANAGER_STORE]
 
-    def _request_countries(self):
-        # TODO: urllib...
-        print 'Getting country list...'
-        return COUNTRIES_TEST
-    def add_country(self, name):
-        # TODO: urllib post and get new key...
-        key = md5.md5(name).hexdigest()
-        COUNTRIES_TEST[unicode(key)] = unicode(name)
-        self._cache_countries[unicode(key)] = unicode(name)
-        return key
+    def get_entity_by_order(self, order):
+        return self.entities[order]
 
-    def countries(self):
-        if not len(self._cache_countries):
-            self._cache_countries.update(self._request_countries())
-            self._cache_countries.sync()
-        country_list = [ (unicode(k), unicode(v)) for k,v in self._cache_countries.items() ]
-        country_list.sort(lambda x,y: cmp(x[1],y[1]))
-        return country_list
+    def set_config(self, key, value):
+        self.config[key] = value
 
-    # state
-    def set_state(self, state):
-        self.config[u'state'] = state
-        self.city = u''
-        self.store = u''
-        self._cache_cities.clear()
-        self._cache_stores.clear()
-        self._cache_cities.sync()
-        self._cache_stores.sync()
-    def get_state(self):
-        if not self.config.has_key(u'state'):
-            self.config[u'state'] = u''
-        return self.config[u'state']
-    state = property(get_state, set_state)
+    def get_config(self, key, default):
+        if not self.config.has_key(key):
+            self.config[key] = default
+        return self.config[key]
 
-    def get_state_name(self):
-        if not self._cache_states.has_key(self.state):
-            return u''
-        return unicode(self._cache_states[self.state])
-    state_name = property(get_state_name)
-
-    def _request_states(self, country):
-        # TODO: urllib...
-        print 'Getting state list of %s...' % (country,)
-        return STATES_TEST[country]
-    def add_state(self, name):
-        # TODO: urllib post and get new key...
-        key = md5.md5(name).hexdigest()
-        STATES_TEST[self.country][unicode(key)] = unicode(name)
-        self._cache_states[unicode(key)] = unicode(name)
-        return key
-
-    def states(self):
-        country = self.country
-        if not len(self._cache_states):
-            self._cache_states.update(self._request_states(country))
-            self._cache_states.sync()
-        state_list = [ (unicode(k), unicode(v)) for k,v in self._cache_states.items() ]
-        state_list.sort(lambda x,y: cmp(x[1],y[1]))
-        return state_list
-
-    # city
-    def set_city(self, city):
-        self.config[u'city'] = city
-        self.store = u''
-        self._cache_stores.clear()
-        self._cache_stores.sync()
-    def get_city(self):
-        if not self.config.has_key(u'city'):
-            self.config[u'city'] = u''
-        return self.config[u'city']
-    city = property(get_city, set_city)
-
-    def get_city_name(self):
-        if not self._cache_cities.has_key(self.city):
-            return u''
-        return unicode(self._cache_cities[self.city])
-    city_name = property(get_city_name)
-
-    def _request_cities(self, state):
-        # TODO: urllib...
-        print 'Getting city list...'
-        return CITIES_TEST[state]
-    def add_city(self, name):
-        # TODO: urllib post and get new key...
-        key = md5.md5(name).hexdigest()
-        CITIES_TEST[unicode(key)] = unicode(name)
-        self._cache_cities[unicode(key)] = unicode(name)
-        return key
-
-    def cities(self):
-        state = self.state
-        if not len(self._cache_cities):
-            self._cache_cities.update(self._request_cities(state))
-            self._cache_cities.sync()
-        city_list = [ (unicode(k), unicode(v)) for k,v in self._cache_cities.items() ]
-        city_list.sort(lambda x,y: cmp(x[1],y[1]))
-        return city_list
-
-    # store
-    def set_store(self, store):
-        self.config[u'store'] = store
-    def get_store(self):
-        if not self.config.has_key(u'store'):
-            self.config[u'store'] = u''
-        return self.config[u'store']
-    store = property(get_store, set_store)
-
-    def get_store_name(self):
-        if not self._cache_stores.has_key(self.store):
-            return u''
-        return unicode(self._cache_stores[self.store].split('\n')[0])
-        
-    def get_store_address(self):
-        if not self._cache_stores.has_key(self.store):
-            return u''
+    def clear(self, clear_from):
         try:
-            return unicode(self._cache_stores[self.store].split('\n')[1])
+            self.entities[clear_from].set(u'')
+            self.entities[clear_from].clear()
         except IndexError:
-            return u''
-            
-    def _request_stores(self, city):
-        # TODO: urllib...
-        print 'Getting store list...'
-        return STORES_TEST[city]
-    def add_store(self, name, address):
-        # TODO: urllib post and get new key...
-        key = md5.md5(name).hexdigest()
-        value = unicode(name) + u'\n' + unicode(address)
-        STORES_TEST[unicode(key)] = value
-        self._cache_stores[unicode(key)] = value
-        return key
-        
-    def stores(self):
-        city = self.city
-        if not len(self._cache_stores):
-            self._cache_stores.update(self._request_stores(city))
-            self._cache_stores.sync()
-
-        ret = []
-        for k, v in self._cache_stores.items():
-            name, address = v.split("\n")
-            ret.append( (unicode(k), unicode(name), unicode(address)) )
-        ret.sort(lambda x,y: cmp(x[1],y[1]))
-
-        return ret
-
-    def _get_store_name(self):
-        return self._cache_stores[self.config[u'store']]
-    store_name = property(_get_store_name)
-
-
-    # def get_ean13_prefix(self):
-    #     return self._ean_prefix[self.config['country']]
-
-    def close(self):
-        self.config.close()
-        self._cache_countries.close()
-        # self._cache_ean_prefix.close()
-        self._cache_states.close()
-        self._cache_cities.close()
-        self._cache_stores.close()
+            return
 
     def refresh(self):
-        # TODO
-        pass
+        for entity in self.entities:
+            entity.refresh()
+
+    def close(self):
+        for entity in self.entities:
+            entity.close()
+        self.config.close()
+
+    def verify_barcode(self, barcode):
+        return _verify_barcode(str(barcode))
 
     def get_prices(self, barcode, price, description):
-        # TODO
+        # TODO: implement with urllib request...
+        print "Get Price:", barcode, price, description
         if barcode == 978:
             return [
                 (u'Supermercado Foo', u'R$10,00'),
@@ -274,165 +186,195 @@ class DataManager(object):
             return []
 
 
+class EntityChooser(object):
+    def __init__(self, index, dataman):
+        self.index = index
+        self.dataman = dataman
 
+        self._lb_lock = e32.Ao_lock()
+        self._lb_selected = False
 
-class MainApp(AppSkel):
-    """This is the Application class"""
-
-    TAB_SETTINGS = 0
-    TAB_STORES = 1
-    TAB_RESULTS = 2
-
-    SETTING_COUNTRY = 0
-    SETTING_STATE = 1
-    SETTING_CITY = 2
-
-    def init(self):
-        self.title = u"GoMarket"
-        self.datamanager = DataManager(RESOURCE_DIR)
-
-        self.settings_lb = None
-        self.stores_lb = None
-        self.results_lb = None
-
-    def setup(self):
-        start_tab = self.TAB_SETTINGS
-        if self.datamanager.city:
-            start_tab = self.TAB_STORES
-        if self.datamanager.store:
-            start_tab = self.TAB_RESULTS
-        self.activate_tab(start_tab)
-
-    def tabs(self):
-        return (
-            (u'Settings', self.tab_settings_body),
-            (u'Stores', self.tab_stores_body),
-            (u'Result', self.tab_results_body, self.tab_results_menu),
-        )
-
-    def menu(self):
-        return [
-            (u'Refresh', self.refresh),
-        ]
-
-
-    # TAB_SETTINGS
-    def tab_settings_body(self):
-        self.settings_list = [
-            (u'Country', self.datamanager.country_name),
-            (u'State', self.datamanager.state),
-            (u'City', self.datamanager.city),
-        ]
-        self.settings_lb = appuifw.Listbox(self.settings_list, self.tab_callback_settings)
-        return self.settings_lb
-
-    def tab_callback_settings(self):
-        index = self.settings_lb.current()
-        dataman = self.datamanager
-
-        if index == self.SETTING_COUNTRY:
-            self._setting('country',
-                dataman.countries,
-                dataman.get_country_name,
-                dataman.set_country,
-                dataman.add_country,
-                [ self.SETTING_STATE, self.SETTING_CITY ]
-            )
-        elif index == self.SETTING_STATE:
-            self._setting('state',
-                dataman.states,
-                dataman.get_state_name,
-                dataman.set_state,
-                dataman.add_state,
-                [ self.SETTING_CITY ]
-            )
-        else:
-            self._setting('city',
-                dataman.cities,
-                dataman.get_city_name,
-                dataman.set_city,
-                dataman.add_city,
-                [ ]
-            )
-            if dataman.city:
-                self.activate_tab(self.TAB_STORES)
-            
-    def _setting(self, option, datasrc, get_name, set_attr, add_item, reset_list):
-        index = self.settings_lb.current()
+    def get(self, add_callback):
         option_keys = [None]
         option_values = [u'NEW']
         try:
-            for key, value in datasrc():
+            for key, value in self.dataman.entities[self.index].object_list():
                 option_keys.append(key)
                 option_values.append(value)
+        except InvalidSetting, e:
+            appuifw.note(unicode(e), 'error')
+            return
         except KeyError:
-            pass # only NEW option
-            
+            pass
+
         selection = appuifw.selection_list(option_values, 1)
         if selection is None:
             return
+
         key = option_keys[selection]
         value = option_values[selection]
 
+        # add new item
         if key is None:
-            value = appuifw.query(u"New %s" % (option,), 'text')
-            if value is None:
-                return
-            key = add_item(value)
+            key = add_callback(self.dataman)
 
-        set_attr(key)
-        
-        # reset next options
-        self.settings_list[index] = (self.settings_list[index][0], get_name())
-        for reset in reset_list:
-            self.settings_list[reset] = (self.settings_list[reset][0], u'')
-        self.settings_lb.set_list(self.settings_list, index)
-    # /TAB_SETTINGS
+        return key
+
+    def get_with_lb(self, add_callback):
+        option_keys = [None]
+        option_values = [ (u'NEW', u'') ]
+        try:
+            for key, value in self.dataman.entities[self.index].object_list():
+                option_keys.append(key)
+                if u'\n' in value:
+                    option_value = tuple(value.split(u'\n'))
+                else:
+                    option_value = (value, u'')
+                option_values.append(option_value)
+        except InvalidSetting, e:
+            appuifw.note(unicode(e), 'error')
+            return
+        except KeyError:
+            pass
+
+        old_body = appuifw.app.body
+        old_exit = appuifw.app.exit_key_handler
+        old_menu = appuifw.app.menu
+
+        listbox = appuifw.Listbox(option_values, self._lb_callback)
+        appuifw.app.body = listbox
+        appuifw.app.exit_key_handler = self._lb_cancel_callback
+        appuifw.app.menu = [ (u'Select', self._lb_callback) ]
+        self._lb_lock.wait()
+
+        appuifw.app.body = old_body
+        appuifw.app.exit_key_handler = old_exit
+        appuifw.app.menu = old_menu
+
+        selection = listbox.current()
+        if not self._lb_selected:
+            return
+
+        key = option_keys[selection]
+        value = option_values[selection]
+
+        # add new item
+        if key is None:
+            key = add_callback(self.dataman)
+
+        return key
+
+    def _lb_callback(self):
+        self._lb_selected = True
+        self._lb_lock.signal()
+
+    def _lb_cancel_callback(self):
+        self._lb_selected = False
+        self._lb_lock.signal()
 
 
-    # TAB_STORES
-    def tab_stores_body(self):
-        self.load_stores_list()
-        self.stores_lb = appuifw.Listbox(self.store_items, self.tab_callback_stores)
-        return self.stores_lb
+class MainApp(skel.AppSkel):
+    """This is the Application class"""
 
-    def tab_callback_stores(self):
-        index = self.stores_lb.current()
+    TAB_SETTINGS = 0
+    TAB_RESULTS = 1
 
-        if self.store_keys[index] is None:
-            try:
-                name, address = appuifw.multi_query(u'Store Name:', u'Address:')
-            except TypeError: # cancel
-                return
-            if not name.strip():
-                return
+    def __init__(self):
+        self.title = u"GoMarket"
+        self.dataman = DataManager(RESOURCE_DIR)
 
-            key = self.datamanager.add_store(name, address)
+        self.settings_list = []
+        self.settings_lb = None
 
-            self.load_stores_list()
-            self.refresh_stores_lb()
+        self.results_lb = None
+
+        super(MainApp, self).__init__()
+
+    def setup(self):
+        if self.dataman.stores.get():
+            self.activate_tab(self.TAB_RESULTS)
         else:
-            self.datamanager.config['store'] = self.store_keys[index]
+            self.activate_tab(self.TAB_SETTINGS)
 
-        # move to result if it already exists
-        if self.results_lb:
-            result_list = self.get_results_list([])
-            self.refresh_results_lb(result_list)
-        self.activate_tab(self.TAB_RESULTS)
+    def tabs(self):
+        return (
+            (u'Settings', self.tab_settings_body, self.tab_settings_menu),
+            (u'Result', self.tab_results_body, self.tab_results_menu),
+        )
 
-    def load_stores_list(self):
-        self.store_keys = [None]
-        self.store_items = [ (u"NEW", u"") ]
-        for key, name, address in self.datamanager.stores():
-            self.store_keys.append(key)
-            self.store_items.append( (name, address) )
+    def tab_settings_body(self):
+        self.load_settings_list()
+        self.settings_lb = appuifw.Listbox(self.settings_list, self.tab_callback_settings)
+        return self.settings_lb
 
-    def refresh_stores_lb(self):
-        self.stores_lb.set_list(self.store_items)
-    # /TAB_STORES
+    def tab_settings_menu(self):
+        return [
+            (u'Change', self.tab_callback_settings),
+            (u'Refresh', self.refresh),
+        ]
 
+    def load_settings_list(self):
+        self.settings_list = [
+            (u'Country', self.dataman.countries.get_name()),
+            (u'State', self.dataman.states.get_name()),
+            (u'City', self.dataman.cities.get_name()),
+            (u'Store', self.dataman.stores.get_name().split(u'\n')[0]),
+        ]
 
-    # TAB_RESULTS
+    def refresh_settings_lb(self, current=0):
+        if self.settings_lb:
+            self.settings_lb.set_list(self.settings_list, current)
+
+    def tab_callback_settings(self):
+        index = self.settings_lb.current()
+
+        chooser = EntityChooser(index, self.dataman)
+        if index == self.dataman.MANAGER_COUNTRY:
+            country_key = chooser.get(self._add_country)
+            if country_key:
+                self.dataman.countries.set(country_key)
+        elif index == self.dataman.MANAGER_STATE:
+            state_key = chooser.get(self._add_state)
+            if state_key:
+                self.dataman.states.set(state_key)
+        elif index == self.dataman.MANAGER_CITY:
+            city_key = chooser.get(self._add_city)
+            if city_key:
+                self.dataman.cities.set(city_key)
+        else:
+            store_key = chooser.get_with_lb(self._add_store)
+            if store_key:
+                self.dataman.stores.set(store_key)
+
+        self.load_settings_list()
+        self.refresh_settings_lb(index)
+        self.refresh_results_lb(self.get_results_list([]))
+
+    def _add_country(self, dataman):
+        country_name = appuifw.query(u"Country Name:", 'text')
+        if country_name is None:
+            return
+        return dataman.countries.add(country_name)
+
+    def _add_state(self, dataman):
+        state_name = appuifw.query(u"State Name:", 'text')
+        if state_name is None:
+            return
+        return dataman.states.add(state_name)
+
+    def _add_store(self, dataman):
+        try:
+            store_name, store_address = appuifw.multi_query(u"Store Name:", u"Address:")
+        except ValueError:
+            return
+        return dataman.stores.add(store_name + u'\n' + store_address)
+
+    def _add_city(self, dataman):
+        city_name = appuifw.query(u"City Name:", 'text')
+        if city_name is None:
+            return
+        return dataman.cities.add(city_name)
+
     def tab_results_body(self):
         results_list = self.get_results_list([])
         self.results_lb = appuifw.Listbox(results_list, self.tab_callback_results)
@@ -448,28 +390,30 @@ class MainApp(AppSkel):
             self.get_prices()
 
     def get_results_list(self, results, barcode=""):
+        store_name = self.dataman.stores.get_name().split(u'\n')[0]
         if barcode:
-            results_list = [ (u'Get Price', u"%s / %s" % (self.datamanager.store_name, barcode)) ]
+            results_list = [ (u'Get Prices', u"%s / %s" % (store_name, barcode)) ]
         else:
-            results_list = [ (u'Get Price', self.datamanager.store_name) ]
+            results_list = [ (u'Get Prices', store_name) ]
         results_list += results
         return results_list
 
     def refresh_results_lb(self, results):
         self.results_lb.set_list(results)
-    # /TAB_RESULTS
 
-
-    # handle callbacks...
     def get_prices(self):
-        if not self.datamanager.config['store']:
-            appuifw.note(u"You need to select a store.", "error")
-            self.activate_tab(self.TAB_STORES)
+        if not self.dataman.stores.get():
+            appuifw.note(u"Please, choose the store where you are.", "error")
+            self.activate_tab(self.TAB_SETTINGS)
             return
 
-        barcode = appuifw.query(u"Barcode:", 'number') #, self.datamanager.get_ean13_prefix())
+        barcode = appuifw.query(u"Barcode:", 'number')
         if barcode is None:
             return
+        if not self.dataman.verify_barcode(barcode):
+            appuifw.note(u"Invalid barcode.", "error")
+            return
+
         price = appuifw.query(u"Price:", 'float')
         if not price:
             return
@@ -478,18 +422,26 @@ class MainApp(AppSkel):
         if description is None:
             description = u""
 
-        prices = self.datamanager.get_prices(barcode, price, description)
+        prices = self.dataman.get_prices(barcode, price, description)
         if not prices:
             appuifw.note(u'No prices for code %s' % (barcode,), 'info')
-        results = self.get_results_list(prices, barcode)
-        self.refresh_results_lb(results)
+
+        self.refresh_results_lb(self.get_results_list(prices, barcode))
 
     def refresh(self):
-        self.datamanager.refresh()
+        confirm = appuifw.query(u"This will take a long time and requires data transfer. Confirm?", 'query')
+        if not confirm:
+            return
+
+        self.dataman.refresh()
+        self.load_settings_list()
+        self.refresh_settings_lb()
+        self.refresh_results_lb(self.get_results_list([]))
 
     def confirm_exit(self):
-        self.datamanager.close()
+        self.dataman.close()
         return True
+
     def menu_about(self):
         self.about_dialog(
             name=u"GoMarket",
@@ -500,9 +452,12 @@ class MainApp(AppSkel):
             license=u"MIT License",
         )
 
+
+
 def main():
     app = MainApp()
     app.run()
 
+
 if __name__ == '__main__':
-	main()
+    main()
