@@ -1,34 +1,62 @@
+#!/usr/bin/env python
+# -*- coding=utf-8 -*-
+
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext import db
+from google.appengine.ext.db import djangoforms
 import simplejson
 
 class Country(db.Model):
     name = db.StringProperty()
-    abreviation = db.StringProperty()
+    abbreviation = db.StringProperty()
     ean13_prefix = db.StringProperty()
+
+class CountryForm(djangoforms.ModelForm):
+    class Meta:
+        model = Country
 
 class State(db.Model):
     name = db.StringProperty()
-    abreviation = db.StringProperty()
+    abbreviation = db.StringProperty()
     country = db.ReferenceProperty(Country)
+
+class StateForm(djangoforms.ModelForm):
+    class Meta:
+        model = State
 
 class City(db.Model):
     name = db.StringProperty()
     state = db.ReferenceProperty(State)
 
+class CityForm(djangoforms.ModelForm):
+    class Meta:
+        model = City
+
 class Address(db.Model):
     description = db.StringProperty()
     city = db.ReferenceProperty(City)
+
+class AddressForm(djangoforms.ModelForm):
+    class Meta:
+        model = Address
 
 class Market(db.Model):
     name = db.StringProperty()
     address = db.ReferenceProperty(Address)
 
+class MarketForm(djangoforms.ModelForm):
+    class Meta:
+        model = Market
+
 class Product(db.Model):
     description = db.StringProperty()
     price = db.FloatProperty()
     market = db.ReferenceProperty(Market)
+
+class ProductForm(djangoforms.ModelForm):
+    class Meta:
+        model = Product
 
 # Functions used in various handlers.
 def getByName(self, *args, **kwargs):
@@ -55,12 +83,20 @@ def getByDescription(self, *args, **kwargs):
     result = q.fetch(1)
     return result
 
+def getByAbbreviation(self, *args, **kwargs):
+    abbreviation = kwargs.get('abbreviation')
+    modelClass = kwargs.get('modelClass')
+    q = modelClass.all()
+    q.filter('abbreviation=',abbreviation)
+    result = q.fetch(1)
+    return result
+
 def newCountry(self, *args, **kwargs):
     name = kwargs.get("name")
-    abreviation = kwargs.get("abreviation")
+    abbreviation = kwargs.get("abbreviation")
     ean13_prefix = kwargs.get("ean13_prefix")
     country = Country(name=name,
-                      abreviation=abreviation,
+                      abbreviation=abbreviation,
                       ean13_prefix=ean13_prefix,
                       )
     db.put(country)
@@ -68,10 +104,10 @@ def newCountry(self, *args, **kwargs):
 
 def newState(self, *args, **kwargs):
     name = kwargs.get("name")
-    abreviation = kwargs.get("abreviation")
+    abbreviation = kwargs.get("abbreviation")
     country = kwargs.get("country")
     state = State(name=name,
-                  abreviation=abreviation,
+                  abbreviation=abbreviation,
                   ean13_prefix,
                  )
     db.put(state)
@@ -116,9 +152,8 @@ def newProduct(self, *args, **kwargs):
     db.put(p)
     return p
 
-#TODO: post, json, search, urls
 #----------------------------------------------------------------------------#
-# Request Handlres.
+# Request Handlers.
 class HandleIndex(webapp.RequestHandler):
     def get(self):
         self.response.out.write('<H1>GoMarket is used for Nokia S60 devices!!</H1>')
@@ -126,54 +161,165 @@ class HandleIndex(webapp.RequestHandler):
 class HandleCountry(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
-        country = db.get(key)
-        self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(country))
+        description = self.request.get("description")
+        country = None
+        if key:
+            country = db.get(key)
+        elif description:
+            country = getByDescription(description=description,
+                                       modelClass=Country)
+        if country:
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.write(simplejson.dumps(country))
+        else:
+            error(404)
 
+    def post(self):
+        data = CountryForm(data=self.request.POST)
+        if data.is_valid():
+            model_object = data.save(commit=False)
+            model_object.put()
+            self.redirect('/')
+        else:
+            error(200)
+ 
 class HandleState(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
-        state = db.get(key)
-        self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(state))
+        name = self.request.get("name")
+        abbreviation = self.request.get("abbreviation")
+        state = None
+        if key:
+            state = db.get(key)
+        elif abbreviation:
+            state = getByAbbreviation(abbreviation=abbreviation,
+                                      modelClass=State)
+        elif name:
+            state = getByDescription(description=description,
+                                     modelClass=State)
+        if state:
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.write(simplejson.dumps(state))
+        else:
+            error(404)
 
+    def post(self):
+        data = StateForm(data=self.request.POST)
+        if data.is_valid():
+            model_object = data.save(commit=False)
+            model_object.put()
+            self.redirect('/')
+        else:
+            error(200)
+ 
 class HandleCity(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
-        city = db.get(key)
-        self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(city))
+        name = self.request.get("name")
+        city = None
+        if key:
+            city = db.get(key)
+        elif name:
+            city = getByName(name=name,
+                             modelClass=City)
+        if city:
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.write(simplejson.dumps(city))
+        else:
+            error(404)
 
+    def post(self):
+        data = CityForm(data=self.request.POST)
+        if data.is_valid():
+            model_object = data.save(commit=False)
+            model_object.put()
+            self.redirect('/')
+        else:
+            error(200)
+ 
 class HandleAddress(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
-        address = db.get(key)
-        self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(address))
+        name = self.request.get("name")
+        address = None
+        if key:
+            address = db.get(key)
+        elif name:
+            address = getByName(name=name,
+                                modelClass=Address)
+        if address:
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.write(simplejson.dumps(address))
+        else:
+            error(404)
 
+    def post(self):
+        data = AddressForm(data=self.request.POST)
+        if data.is_valid():
+            model_object = data.save(commit=False)
+            model_object.put()
+            self.redirect('/')
+        else:
+            error(200)
+ 
 class HandleMarket(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
+        name = self.request.get("name")
+        market = None
+        if key:
+            market = db.get(key)
+        elif name:
+            market = getByName(name=name,
+                               modelClass=Market)
+        if market:
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.write(simplejson.dumps(market))
+        else:
+            error(404)
 
-        market = db.get(key)
-        self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(market))
-
+    def post(self):
+        data = MarketForm(data=self.request.POST)
+        if data.is_valid():
+            model_object = data.save(commit=False)
+            model_object.put()
+            self.redirect('/')
+        else:
+            error(200)
+ 
 class HandleProduct(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
-        product = db.get(key)
-        self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(product))
+        description = self.request.get("description")
+        product = None
+        if key:
+            product = db.get(key)
+        elif description:
+            product = getByDescription(description=description,
+                                       modelClass=Product)
+        if product:
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.write(simplejson.dumps(product))
+        else:
+            error(404)
 
+    def post(self):
+        data = ProductForm(data=self.request.POST)
+        if data.is_valid():
+            model_object = data.save(commit=False)
+            model_object.put()
+            self.redirect('/')
+        else:
+            error(200)
+ 
 application = webapp.WSGIApplication(
                                      [('/', HandleIndex),
-                                      ('^country/(?<key>\d)$', HandleCountry),
-                                      ('^state/(?<key>\d)$', HandleState),
-                                      ('^city/(?<key>\d)$', HandleCity),
-                                      ('^address/(?<key>\d)$', HandleAddress),
-                                      ('^market/(?<key>\d)$', HandleMarket),
-                                      ('^product/(?<key>\d)$', HandleProduct),
+                                      ('^country/', HandleCountry),
+                                      ('^state/', HandleState),
+                                      ('^city/', HandleCity),
+                                      ('^address/', HandleAddress),
+                                      ('^market/', HandleMarket),
+                                      ('^product/', HandleProduct),
                                       ],
                                       debug=True)
 
