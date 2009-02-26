@@ -9,13 +9,15 @@ DEV=$2
 
 APP_FILENAME="gomarket"
 APP_NAME="GoMarket"
+APP_VERSION="0.1.0"
 APP_CAPTION="GoMarket"
 APP_VENDOR="Triveos Tecnologia Ltda."
+APP_UID="$($SCRIPTDIR/ensymble.py genuid $APP_NAME | cut -d\  -f2)"
 
-$SCRIPTDIR/ensymble.py py2sis --appname=$APP_NAME \
-    --lang=EN --extrasdir=$APP_NAME --encoding=utf-8,utf-8 --icon=$DIR/icon.svg \
+$SCRIPTDIR/ensymble.py simplesis --uid=$APP_UID --appname=$APP_NAME --version=$APP_VERSION \
+    --lang=EN --icon=$DIR/icon.svg \
     --vendor="$APP_VENDOR" \
-    $DIR $DIR/$APP_FILENAME.sis
+    $DIR $DIR
 
     # --shortcaption
     # --caption
