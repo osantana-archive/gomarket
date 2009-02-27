@@ -1,45 +1,6 @@
 #!/usr/bin/env python
 # -*- coding=utf-8 -*-
 
-'''
-Requests:
-
-GET
----
-/countries/ - returns a JSON 'dict' with: { country_key: country_name }
-/states/{country_key}/ - returns a JSON 'dict' with: { state_key: state_name }
-/cities/{state_key}/ - returns a JSON 'dict' with: { city_key: city_name }
-/stores/{city_key}/ - returns a JSON 'dict' with: { store_key: store_name + '\n'
-+ store_address }
-
-/prices/?barcode=XXXXXXXXXXX&price=X.XX&description=XXXXX -
-Put this info in our database (validate barcode and price!=0) and returns a JSON
-'list' with:
-    [
-        [ store_name1, price1 ],
-        [ store_name2, price2 ],
-        :
-        [ store_nameN, priceN ],
-   ]
-
-ordered by price.
-
-
-POST
-----
-/(countries|states|cities)/
-    - send ->
-        field: (country|state|city)_name 
-        field: parent_key (ex. country_key to add a state or state_key to add
-city)
-    - response -> JSON string with the new (country|state|city) key
-/stores/
-    - send ->
-        field: store_description with unicode(store_name + '\n' + store_address)
-        field: parent_key (in this case the city_key)
-    - response -> JSON string with the new store key
-
-'''
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext import db
@@ -48,7 +9,6 @@ import simplejson
 
 class Country(db.Model):
     name = db.StringProperty()
-    abbreviation = db.StringProperty()
     ean13_prefix = db.StringProperty()
 
 class CountryForm(djangoforms.ModelForm):
@@ -57,7 +17,6 @@ class CountryForm(djangoforms.ModelForm):
 
 class State(db.Model):
     name = db.StringProperty()
-    abbreviation = db.StringProperty()
     country = db.ReferenceProperty(Country)
 
 class StateForm(djangoforms.ModelForm):
@@ -116,17 +75,8 @@ def getByDescription(*args, **kwargs):
     result = q.fetch(1)
     return result
 
-def getByAbbreviation(*args, **kwargs):
-    abbreviation = kwargs.get('abbreviation')
-    modelClass = kwargs.get('modelClass')
-    q = modelClass.all()
-    q.filter('abbreviation=',abbreviation)
-    result = q.fetch(1)
-    return result
-
 def newCountry(*args, **kwargs):
     name = kwargs.get("name")
-    abbreviation = kwargs.get("abbreviation")
     ean13_prefix = kwargs.get("ean13_prefix")
     country = Country(name=name,
                       abbreviation=abbreviation,
@@ -135,18 +85,26 @@ def newCountry(*args, **kwargs):
     db.put(country)
     return country
 
+def newObject(*args, **kwargs):
+    name = kwargs.get("name")
+    parent_key = kwargs.get("parent_key")
+    model_object = modelClass(
+        parent=Key(parent_key),
+        name = name,
+    )
+    db.put(model_object)
+    return model_object.key()
+
+
 def newState(*args, **kwargs):
     name = kwargs.get("name")
-    abbreviation = kwargs.get("abbreviation")
-    country_name = kwargs.get("country_name")
-    country = getByName(name=country_name,
-                        modelClass=Country)
-    state = State(name=name,
-                  abbreviation=abbreviation,
-                  country=country,
-                 )
-    db.put(state)
-    return state
+    parent_key = kwargs.get("parent_key")
+    model_object = modelClass(
+        parent=Key(parent_key),
+        name = name,
+    )
+    db.put(model_object)
+    return model_object.key()
 
 def newCity(*args, **kwargs):
     name = kwargs.get("name")
@@ -162,16 +120,14 @@ def newCity(*args, **kwargs):
 def newStore(*args, **kwargs):
     name = kwargs.get("name")
     address = kwargs.get("address")
-    city_name = kwargs.get("city_name")
-    city = getByName(name=city_name,
-                     modelClass=City)
-    m = Market(
+    parent_key = kwargs.get("parent_key")
+    p = Product(
+        parent=Key(parent_key),
         name=name,
         address=address,
-        city=city
     )
-    db.put(m)
-    return m
+    db.put(p)
+    return p.key()
 
 def newProduct(*args, **kwargs):
     description = kwargs.get('description')
@@ -215,6 +171,15 @@ class HandleCountries(webapp.RequestHandler):
         else:
             error(404)
 
+    def post(self):
+        name = self.request.get('country_name')
+        country = Country(
+            name=name,
+        )
+        db.put(country)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(country.key()))
+ 
 class HandleCountry(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
@@ -250,6 +215,18 @@ class HandleStates(webapp.RequestHandler):
             self.response.write(simplejson.dumps(states))
         else:
             error(404)
+
+    def post(self):
+        name = self.request.get('state_name')
+        parent_key = self.request.get('parent_key')
+        key = newObject(
+            name=name,
+            parent_key=parent_key
+        )
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(key))
+        # As a good pratice is better to redirect to avoid refresh problems.
+        # self.redirect('/') # Looking for an idea.
 
 class HandleState(webapp.RequestHandler):
     def get(self):
@@ -291,6 +268,16 @@ class HandleCities(webapp.RequestHandler):
         else:
             error(404)
 
+    def post(self):
+        name = self.request.get('city_name')
+        parent_key = self.request.get('parent_key')
+        key = newObject(
+            name=name,
+            parent_key=parent_key
+        )
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(key))
+ 
 class HandleCity(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
@@ -334,6 +321,18 @@ class HandleStores(webapp.RequestHandler):
         else:
             error(404)
 
+    def post(self):
+        description = self.request.get('store_description')
+        name, address = description.splitlines()
+        parent_key = self.request.get('parent_key')
+        key = newStore(
+            name=name,
+            address=address,
+            parent_key=parent_key
+        )
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.write(simplejson.dumps(key))
+ 
 class HandleStore(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
@@ -431,12 +430,11 @@ class HandlePrices(webapp.RequestHandler):
 
 application = webapp.WSGIApplication(
                                      [('/', HandleIndex),
-                                      ('^country/', HandleCountry),
-                                      ('^state/', HandleState),
-                                      ('^city/', HandleCity),
-                                      ('^address/', HandleAddress),
-                                      ('^market/', HandleStore),
-                                      ('^product/', HandleProduct),
+#                                      ('^country/', HandleCountry),
+#                                      ('^state/', HandleState),
+#                                      ('^city/', HandleCity),
+#                                      ('^store/', HandleStore),
+#                                      ('^product/', HandleProduct),
                                       ('^countries/', HandleCountries),
                                       ('^states/{country_key}/', HandleStates),
                                       ('^cities/{state_key}/', HandleCities),
