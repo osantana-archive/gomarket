@@ -1,4 +1,4 @@
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 
 COUNTRIES_TEST = {
     u'key_a': u'Brazil',
@@ -6,7 +6,7 @@ COUNTRIES_TEST = {
 }
 STATES_TEST = {
     u'key_a': {
-        u'key_aa': u'Sao Paulo',
+        u'key_aa': 'São Paulo'.decode('utf-8'),
         u'key_ab': u'Rio de Janeiro',
     },
     u'key_b': {
@@ -16,12 +16,12 @@ STATES_TEST = {
 }
 CITIES_TEST = {
     u'key_aa': {
-        u'key_aaa': u'Sao Paulo',
-        u'key_aab': u'Sao Jose do Rio Preto',
+        u'key_aaa': 'São Paulo'.decode('utf-8'),
+        u'key_aab': 'São Jose do Rio Preto'.decode('utf-8'),
     },
     u'key_ab': {
         u'key_aba': u'Rio de Janeiro',
-        u'key_abb': u'Niteroi',
+        u'key_abb': 'Niterói'.decode('utf-8'),
     },
     u'key_ba': {
         u'key_baa': u'Miami',
@@ -35,14 +35,9 @@ CITIES_TEST = {
 
 STORES_TEST = {
     u'key_aaa': {
-        u'key_aaaa': u'Supermercado Extra Jaguare\nRua Foo',
+        u'key_aaaa': 'Supermercado Extra Jaguaré\nRua Foo'.decode('utf-8'),
         u'key_aaab': u'Supermercado Extra Pinheiros\nRua Bar',
         u'key_aaac': u'Dip\nRua Bar',
     },
 }
 
-PRICES_TEST = {
-    u'key_aaab': {
-        u'978': '10.90',
-    },
-}

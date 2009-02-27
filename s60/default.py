@@ -1,26 +1,24 @@
-#!/usr/bin/env python
-# encoding: utf-8
-# SIS file infos:
-# SYMBIAN_UID = 0xe89c6eaf
-# SIS_VERSION = "0.1.0"
-
+# -*- coding: utf-8 -*-
 
 import os
 import sys
 import md5
-sys.path.append("E:\\Python")
+import urllib
+
+sys.path.append("E:\\Python") # TODO: is pyshell?
+
+import simplejson as json
 
 import e32     # pylint: disable-msg=F0401
 import e32dbm  # pylint: disable-msg=F0401
 import appuifw # pylint: disable-msg=F0401
+
 import skel
 import test_info
 
 APP_NAME = u"gomarket"
 APP_VERSION = u"0.1"
-RESOURCE_DIR = "E:\\Python"
-DB_MODE = 'cf' # TODO: change database open mode from 'nf' -> 'cf'
-
+DB_MODE = 'cf'
 
 # http://www.pythonbrasil.com.br/moin.cgi/CodigoBarras
 class InvalidBarcode(Exception):
@@ -87,17 +85,25 @@ class Entities(object):
 
     def request(self, request_key):
         # TODO: implement with urllib...
-        if self.key == u'country':
-            return test_info.COUNTRIES_TEST
-        elif self.key == u'state':
-            return test_info.STATES_TEST[request_key]
-        elif self.key == u'city':
-            return test_info.CITIES_TEST[request_key]
-        elif self.key == u'store':
-            return test_info.STORES_TEST[request_key]
-        else:
-            raise ValueError("Invalid entity name %s." % (self.key,))
-
+        #       cache connection to ask only once.
+        #       handle exceptions
+        # page = urllib.urlopen("http://www.google.com/")
+        # page.read()
+        # page.close()
+        try:
+            if self.key == u'country':
+                return test_info.COUNTRIES_TEST
+            elif self.key == u'state':
+                return test_info.STATES_TEST[request_key]
+            elif self.key == u'city':
+                return test_info.CITIES_TEST[request_key]
+            elif self.key == u'store':
+                return test_info.STORES_TEST[request_key]
+            else:
+                raise ValueError("Invalid entity name %s." % (self.key,))
+        except KeyError: # refresh before settings...
+            pass
+            
     def object_list(self):
         if not len(self.cache):
             self.refresh()
@@ -133,7 +139,8 @@ class DataManager(object):
     def __init__(self, resourcedir):
         self.resourcedir = resourcedir
 
-        self.config = e32dbm.open(os.path.join(resourcedir, 'config.db'), DB_MODE)
+        filename = unicode(os.path.join(resourcedir, 'config.db'))
+        self.config = e32dbm.open(filename, DB_MODE)
 
         self.entities = [
             Entities(u'country', self, os.path.join(resourcedir, 'countries.db')),
@@ -180,7 +187,7 @@ class DataManager(object):
     def get_prices(self, barcode, price, description):
         # TODO: implement with urllib request...
         print "Get Price:", barcode, price, description
-        if barcode == 978:
+        if barcode in [ '7892110052153', '9782212110708' ]:
             return [
                 (u'Supermercado Foo', u'R$10,00'),
                 (u'Supermercado Bar', u'R$10,00'),
@@ -285,7 +292,7 @@ class MainApp(skel.AppSkel):
 
     def __init__(self):
         self.title = u"GoMarket"
-        self.dataman = DataManager(RESOURCE_DIR)
+        self.dataman = DataManager(self.get_datadir(APP_NAME))
 
         self.settings_list = []
         self.settings_lb = None
@@ -353,6 +360,8 @@ class MainApp(skel.AppSkel):
         self.load_settings_list()
         self.refresh_settings_lb(index)
         self.refresh_results_lb(self.get_results_list([]))
+        if self.dataman.stores.get():
+            self.activate_tab(self.TAB_RESULTS)
 
     def _add_country(self, dataman):
         country_name = appuifw.query(u"Country Name:", 'text')
@@ -392,6 +401,9 @@ class MainApp(skel.AppSkel):
     def tab_callback_results(self):
         if self.results_lb.current() == 0:
             self.get_prices()
+            return
+        
+        # TODO: appuifw.note(selected_store_address)
 
     def get_results_list(self, results, barcode=""):
         store_name = self.dataman.stores.get_name().split(u'\n')[0]
@@ -452,8 +464,8 @@ class MainApp(skel.AppSkel):
             version=u"0.1",
             year=u'2009',
             authors=[ u"Osvaldo Santana Neto", u"Ramiro Luz" ],
-            icon="E:\\Python\\icon.png",
-            license=u"MIT License",
+            icon=os.path.join(self.get_datadir(APP_NAME), "icon.png"),
+            license_=u"MIT License",
         )
 
 

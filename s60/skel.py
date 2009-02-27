@@ -1,4 +1,6 @@
-# encoding: utf-8
+# -*- coding: utf-8 -*-
+
+import os
 
 import e32       # pylint: disable-msg=F0401
 import appuifw   # pylint: disable-msg=F0401
@@ -119,19 +121,14 @@ class AppSkel(object):
         d_canvas.text(((d_canvas.size[0] - txt_size[0]) / 2, y), msg, font=font)
         return y
 
-    def about_dialog(self, name, version, year, authors, icon, licence):
-        self._old_exit = appuifw.app.exit_key_handler
-        self._old_menu = appuifw.app.menu
-        self._old_orientation = appuifw.app.orientation
+    def about_dialog(self, name, version, year, authors, icon, license_):
         self._about_window = topwindow.TopWindow()
-
+        
         size, _ = appuifw.app.layout(appuifw.EScreen)
 
+        self._old_orientation = appuifw.app.orientation
         if appuifw.app.orientation != 'portrait': # TODO: implement dialog box for landscape UI
             appuifw.app.orientation = 'portrait'
-
-        appuifw.app.menu = [(u'Close', self._exit_about_dialog), ]
-        appuifw.app.exit_key_handler = self._exit_about_dialog
 
         d_size = (size[0] - 23, size[1] - 100)
         d_pos = (10, (size[1] - d_size[1]) / 2)
@@ -145,10 +142,10 @@ class AppSkel(object):
         
         y = self._center_text(d_canvas, y, name, 'title')
         y = self._center_text(d_canvas, y, version, 'legend')
-        y = self._center_text(d_canvas, y + 6, u"Copyright © " + year, 'dense')
+        y = self._center_text(d_canvas, y + 6, "Copyright ©".decode('utf-8') + unicode(year), 'dense')
         for author in authors:
             y = self._center_text(d_canvas, y, author, 'dense')
-        y = self._center_text(d_canvas, y + 6, licence, 'legend')
+        y = self._center_text(d_canvas, y + 6, license_, 'legend')
 
         self._about_window.add_image(d_canvas, (0, 0))
 
@@ -158,6 +155,10 @@ class AppSkel(object):
         self._about_window.corner_type = 'square'
         self._about_window.show()
 
+        self._old_exit = appuifw.app.exit_key_handler
+        self._old_menu = appuifw.app.menu
+        appuifw.app.menu = [(u'Close', self._exit_about_dialog), ]
+        appuifw.app.exit_key_handler = self._exit_about_dialog
         self._about_lock.wait()
 
     def _exit_about_dialog(self):
@@ -174,4 +175,12 @@ class AppSkel(object):
         if not self.confirm_exit():
             return
         appuifw.app.set_tabs([], None)
+        appuifw.app.set_exit()
         self._mainlock.signal()
+
+    def get_datadir(self, appname):
+        path = unicode(os.path.join(os.path.splitdrive(os.getcwd())[0] + u'\\', u'data', unicode(appname)))
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        return path
+        
