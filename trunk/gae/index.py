@@ -83,7 +83,7 @@ class StoreForm(djangoforms.ModelForm):
 
 class Product(db.Model):
     description = db.StringProperty()
-    barcode = db.StringProperty()
+    barcode = db.IntegerProperty()
     price = db.FloatProperty()
     store = db.ReferenceProperty(Store)
 
@@ -415,6 +415,9 @@ class HandlePrices(webapp.RequestHandler):
         # Find all(first 1000) prices for a product description.
         query = Product.all()
         query.order('-price')
+        # Alternative filter barcode, the description can differ from a store to
+        # another. 
+        #query.filter('barcode =',barcode)
         query.filter('description =',description)
         results = query.fetch(limit=1000)
         for p in results:
