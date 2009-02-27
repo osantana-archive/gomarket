@@ -3,30 +3,67 @@
 export LANG=en.UTF-8
 export LC_ALL=en.UTF-8
 
+usage() {
+    echo "$0 srcdir resource_dir [target_device]"
+}
+
 SCRIPTDIR=$(dirname $0)
-DIR=$1
-DEV=$2
+SRCDIR=$1
+if [ ! "$SRCDIR" ]; then
+    usage
+    exit 1
+fi
+
+RSCDIR=$2
+if [ ! "$RSCDIR" ]; then
+    usage
+    exit 1
+fi
+
+DESTDEV=$3
+BUILDDIR="$SCRIPTDIR/pkg"
 
 APP_FILENAME="gomarket"
 APP_NAME="GoMarket"
 APP_VERSION="0.1.0"
 APP_CAPTION="GoMarket"
+APP_SHORTCAPTION="GoMarket"
 APP_VENDOR="Triveos Tecnologia Ltda."
 APP_UID="$($SCRIPTDIR/ensymble.py genuid $APP_NAME | cut -d\  -f2)"
+SIGN_CERT="$HOME/.ssh/s60_cert.cer"
+SIGN_KEY="$HOME/.ssh/s60_key.key"
+CAPS="NetworkServices+ReadUserData+WriteUserData+LocalServices+UserEnvironment"
+rm -rf $BUILDDIR
+mkdir -p $BUILDDIR/root/data/$APP_FILENAME/
+cp $SRCDIR/*.py $BUILDDIR/
+cp -r $SRCDIR/simplejson $BUILDDIR/
+cp $RSCDIR/icon.png $BUILDDIR/root/data/$APP_FILENAME/
 
-$SCRIPTDIR/ensymble.py simplesis --uid=$APP_UID --appname=$APP_NAME --version=$APP_VERSION \
-    --lang=EN --icon=$DIR/icon.svg \
+$SCRIPTDIR/ensymble.py py2sis \
+    --verbose \
     --vendor="$APP_VENDOR" \
-    $DIR $DIR
+    --cert="$SIGN_CERT" \
+    --privkey="$SIGN_KEY" \
+    --caps="$CAPS" \
+    --appname="$APP_NAME" \
+    --version="$APP_VERSION" \
+    --caption="$APP_CAPTION" \
+    --shortcaption="$APP_SHORTCAPTION" \
+    --lang=EN \
+    --extrasdir=root \
+    --drive=C \
+    --uid=$APP_UID \
+    --icon=$RSCDIR/tiny_icon_final.svg \
+    $BUILDDIR $SCRIPTDIR/build/$APP_FILENAME.sis
 
-    # --shortcaption
-    # --caption
-    # --textfile
-    # --cert
-    # --privkey
-    # --passphrase
-    # --caps
+$SCRIPTDIR/ensymble.py mergesis \
+    --verbose \
+    --cert="$SIGN_CERT" \
+    --privkey="$SIGN_KEY" \
+    $SCRIPTDIR/build/$APP_FILENAME.sis \
+    $SCRIPTDIR/PythonForS60_1_4_5_3rdEd.sis \
+    $SCRIPTDIR/build/${APP_FILENAME}_bundle.sis
 
-if [ "$DEV" ]; then
-    $SCRIPTDIR/send_py_to_s60 -d $2 $DIR
+if [ "$DESTDEV" ]; then
+    $SCRIPTDIR/send_py_to_s60 -d $DESTDEV $SCRIPTDIR/build/
 fi

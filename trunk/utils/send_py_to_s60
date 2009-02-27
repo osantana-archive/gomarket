@@ -116,10 +116,14 @@ def main():
         for root, dirs, files in os.walk(src_dir):
             for dirname in dirs:
                 dst = os.path.join(root, dirname).replace(src_dir, dst_root).replace(os.sep, "\\")
+                if ".svn" in dst:
+                    continue
                 client.mkdir(dst)
 
             for filename in files:
                 dst = os.path.join(root, filename).replace(src_dir, dst_root).replace(os.sep, "\\")
+                if ".svn" in dst:
+                    continue
                 client.put(os.path.join(root, filename), dst)
 
         client.disconnect()

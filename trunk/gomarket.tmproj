@@ -68,9 +68,9 @@
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>14</integer>
 				<key>line</key>
-				<integer>12</integer>
+				<integer>17</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
@@ -81,9 +81,6 @@
 	<key>openDocuments</key>
 	<array>
 		<string>utils/create_sis.sh</string>
-		<string>s60/default.py</string>
-		<string>s60/skel.py</string>
-		<string>s60/test_info.py</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
