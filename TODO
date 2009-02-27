@@ -14,7 +14,7 @@ GET
 /cities/{state_key}/ - returns a JSON 'dict' with: { city_key: city_name }
 /stores/{city_key}/ - returns a JSON 'dict' with: { store_key: store_name + '\n' + store_address }
 
-/prices/?barcode=XXXXXXXXXXX&price=X.XX&description=XXXXX -
+/prices/?barcode=XXXXXXXXXXX&price=X.XX&description=XXXXX&store_key=XXXXXXXXX -
 Put this info in our database (validate barcode and price!=0) and returns a JSON 'list' with:
     [
         [ store_name1, price1 ],
@@ -23,7 +23,7 @@ Put this info in our database (validate barcode and price!=0) and returns a JSON
         [ store_nameN, priceN ],
    ]
 
-ordered by price.
+ordered by price desc.
 
 
 POST
