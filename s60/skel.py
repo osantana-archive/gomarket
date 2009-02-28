@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
+# 
+#  skel.py
+#  gomarket
+#  
+#  Created by Osvaldo Santana on 2009-02-27.
+#  Copyright 2009 Triveos Tecnologia Ltda. All rights reserved.
+# 
 
 import os
+import socket
 
 import e32       # pylint: disable-msg=F0401
 import appuifw   # pylint: disable-msg=F0401
@@ -17,7 +25,9 @@ class AppSkel(object):
 
     selected_tab = 0
 
-    def __init__(self):
+    def __init__(self, testing=False):
+        self._testing = testing
+        
         # initialization
         self._mainlock = e32.Ao_lock()
         self._about_lock = e32.Ao_lock()
@@ -78,7 +88,7 @@ class AppSkel(object):
 
     def _create_tabs(self):
         tabs = self.tabs()
-        
+
         titles = []
         for tab in tabs:
             title = tab[0]
@@ -123,7 +133,7 @@ class AppSkel(object):
 
     def about_dialog(self, name, version, year, authors, icon, license_):
         self._about_window = topwindow.TopWindow()
-        
+
         size, _ = appuifw.app.layout(appuifw.EScreen)
 
         self._old_orientation = appuifw.app.orientation
@@ -139,10 +149,10 @@ class AppSkel(object):
         icon = graphics.Image.open(icon)
         d_canvas.blit(icon, target=((d_size[0] - icon.size[0]) / 2, y))
         y += icon.size[1]
-        
+
         y = self._center_text(d_canvas, y, name, 'title')
         y = self._center_text(d_canvas, y, version, 'legend')
-        y = self._center_text(d_canvas, y + 6, "Copyright ©".decode('utf-8') + unicode(year), 'dense')
+        y = self._center_text(d_canvas, y + 6, u"Copyright " + unicode(year), 'dense')
         for author in authors:
             y = self._center_text(d_canvas, y, author, 'dense')
         y = self._center_text(d_canvas, y + 6, license_, 'legend')
@@ -175,7 +185,8 @@ class AppSkel(object):
         if not self.confirm_exit():
             return
         appuifw.app.set_tabs([], None)
-        appuifw.app.set_exit()
+        if not self._testing:
+            appuifw.app.set_exit()
         self._mainlock.signal()
 
     def get_datadir(self, appname):
@@ -183,4 +194,53 @@ class AppSkel(object):
         if not os.path.isdir(path):
             os.mkdir(path)
         return path
-        
+
+    def open_browser(self, url):
+        if e32.s60_version_info >= (3, 0):
+            e32.start_exe("BrowserNG.exe", '4 "%s" 1' % (url,), 1)
+        else:
+            apprun = "Z:\\System\\Programs\\apprun.exe"
+            browser = "Z:\\System\\Apps\\Browser\\Browser.app"
+            if os.path.exists(apprun) and os.path.exists(browser):
+                e32.start_exe(apprun, '%s "%s"' % (browser, url), 1)
+
+
+class Connection(object):
+    _connection = None
+    def get_instance(cls):
+        if cls._connection is None:
+            cls._connection = Connection()
+        return cls._connection
+    get_instance = classmethod(get_instance)
+    
+    def __init__(self):
+        self._default_access_point = None
+        self._access_point_started = False
+
+    def started(self):
+        return (self._default_access_point is not None) and self._access_point_started
+
+    def reset(self):
+        self.stop()
+        self._default_access_point = None
+
+    def start(self):
+        if self._access_point_started:
+            return
+            
+        if not self._default_access_point:
+            confirm = appuifw.query(u"This operation requires data transfer. Confirm?", 'query')
+            if not confirm:
+                return
+            apid = socket.select_access_point() # pylint: disable-msg=E1101
+            if not apid:
+                return
+            self._default_access_point = socket.access_point(apid)  # pylint: disable-msg=E1101
+            socket.set_default_access_point(self._default_access_point)  # pylint: disable-msg=E1101
+        self._default_access_point.start()
+        self._access_point_started = True
+
+    def stop(self):
+        if self._default_access_point:
+            self._default_access_point.stop()
+            self._access_point_started = False

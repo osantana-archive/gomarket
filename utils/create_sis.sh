@@ -1,4 +1,11 @@
 #!/bin/bash
+# 
+#  create_sis.sh
+#  gomarket
+#  
+#  Created by Osvaldo Santana on 2009-02-27.
+#  Copyright 2009 Triveos Tecnologia Ltda. All rights reserved.
+# 
 
 export LANG=en.UTF-8
 export LC_ALL=en.UTF-8
