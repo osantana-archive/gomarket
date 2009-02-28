@@ -3,6 +3,7 @@
 
 from google.appengine.ext import bulkload
 from google.appengine.api import datastore_types
+from gae.index import getByName
 
 class CountryLoader(bulkload.Loader):
   def __init__(self):

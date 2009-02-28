@@ -3,19 +3,18 @@
 
 from google.appengine.ext import bulkload
 from google.appengine.api import datastore_types
-from index import getByName, Country
 
+import index
 
-def getCountryByName(name):
-    country = getByName(name=name,
-                        modelClass=Country)
-    return country.key()
+def get_state_by_name(name):
+    return index.getByName(name=name,
+                           modelClass=index.State)
 
 class StateLoader(bulkload.Loader):
   def __init__(self):
-    bulkload.Loader.__init__(self, 'State',
-                         [('name', str),
-                          ('country', getCountryByName),
+    bulkload.Loader.__init__(self, 'index.State',
+                         [('name', unicode),
+                          ('country', get_state_by_name)
                           ])
 
 if __name__ == '__main__':
