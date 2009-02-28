@@ -1,44 +1,36 @@
 #!/usr/bin/env python
+# vim:ts=4:sw=4:et:si:ai:sm
 # -*- coding=utf-8 -*-
 
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp.util import run_wsgi_app
 from google.appengine.ext import db
-from google.appengine.ext.db import djangoforms
-import simplejson
+from google.appengine.ext.db import Key
+from django.utils import simplejson
 
 class Country(db.Model):
     name = db.StringProperty()
     ean13_prefix = db.StringProperty()
 
-class CountryForm(djangoforms.ModelForm):
-    class Meta:
-        model = Country
+    def get_by_name(self,name):
+        return getByName(name=name, modelClass=Country)
 
 class State(db.Model):
     name = db.StringProperty()
     country = db.ReferenceProperty(Country)
-
-class StateForm(djangoforms.ModelForm):
-    class Meta:
-        model = State
+    def get_by_name(self,name):
+        return getByName(name=name, modelClass=State)
 
 class City(db.Model):
     name = db.StringProperty()
     state = db.ReferenceProperty(State)
-
-class CityForm(djangoforms.ModelForm):
-    class Meta:
-        model = City
+    def get_by_name(self,name):
+        return getByName(name=name, modelClass=City)
 
 class Store(db.Model):
     name = db.StringProperty()
     address = db.StringProperty()
     city = db.ReferenceProperty(City)
-
-class StoreForm(djangoforms.ModelForm):
-    class Meta:
-        model = Market
 
 class Product(db.Model):
     description = db.StringProperty()
@@ -46,18 +38,17 @@ class Product(db.Model):
     price = db.FloatProperty()
     store = db.ReferenceProperty(Store)
 
-class ProductForm(djangoforms.ModelForm):
-    class Meta:
-        model = Product
-
 # Functions used in various handlers.
 def getByName(*args, **kwargs):
     name = kwargs.get('name')
     modelClass = kwargs.get('modelClass')
     q = modelClass.all()
-    q.filter('name=',name)
-    result = q.fetch(1)
-    return result
+    q.filter('name =',name)
+    result = q.fetch(limit=10)
+    if result:
+        return result[0]
+    else:
+        return None
 
 def getByKey(*args, **kwargs):
     key = kwargs.get('key')
@@ -150,214 +141,73 @@ def getResponseData(*args,**kwargs):
     response_data = {}
     query = modelClass.all()
     if ancestor_key:
-        query.ancestor(Key(ancestor_key))
+        query.ancestor(ancestor_key)
     results = query.fetch(limit=500)
     for r in results:
-        response_data[r.key]=r.name
+        response_data['%s' % r.key()]=r.name
     return response_data
 
 #----------------------------------------------------------------------------#
 # Request Handlers.
-class HandleIndex(webapp.RequestHandler):
+class HandleTeste(webapp.RequestHandler):
     def get(self):
-        self.response.out.write('<H1>GoMarket is used for Nokia S60 devices!!</H1>')
-
-class HandleCountries(webapp.RequestHandler):
-    def get(self):
-        countries = getResponseData(modelClass=Country)
-        if countries:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(countries))
-        else:
-            error(404)
-
-    def post(self):
-        name = self.request.get('country_name')
-        country = Country(
-            name=name,
-        )
-        db.put(country)
+        #state = State.all()
+        state = City.all()
+        response_data = {}
+        for state in state.fetch(1000):
+            response_data['%s' % state.key()] = state.name
         self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(country.key()))
- 
+        self.response.out.write(simplejson.dumps(response_data))
+
 class HandleCountry(webapp.RequestHandler):
-    def get(self):
-        key = self.request.get("key")
-        description = self.request.get("description")
-        country = None
-        if key:
-            country = db.get(key)
-        elif description:
-            country = getByDescription(description=description,
-                                       modelClass=Country)
-        if country:
+    def get(self, name=None):
+        if name:
+            country = Country(name=name)
+            db.put(country)
             self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(country))
+            self.response.out.write(simplejson.dumps(' %s - %s' % (country.name, country.key())))
         else:
-            error(404)
-
-    def post(self):
-        data = CountryForm(data=self.request.POST)
-        if data.is_valid():
-            model_object = data.save(commit=False)
-            model_object.put()
-            self.redirect('/')
-        else:
-            error(200)
-
-class HandleStates(webapp.RequestHandler):
-    def get(self):
-        country_key = self.request.get('country_key')
-        states = getResponseData(modelClass=States,
-                                 ancestor_key=country_key)
-        if states:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(states))
-        else:
-            error(404)
-
-    def post(self):
-        name = self.request.get('state_name')
-        parent_key = self.request.get('parent_key')
-        key = newObject(
-            name=name,
-            parent_key=parent_key
-        )
-        self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(key))
-        # As a good pratice is better to redirect to avoid refresh problems.
-        # self.redirect('/') # Looking for an idea.
+            self.error(400)
 
 class HandleState(webapp.RequestHandler):
     def get(self):
-        key = self.request.get("key")
-        name = self.request.get("name")
-        abbreviation = self.request.get("abbreviation")
-        state = None
-        if key:
-            state = db.get(key)
-        elif abbreviation:
-            state = getByAbbreviation(abbreviation=abbreviation,
-                                      modelClass=State)
-        elif name:
-            state = getByDescription(description=description,
-                                     modelClass=State)
-        if state:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(state))
-        else:
-            error(404)
+        name = self.request.get('name')
+        parent_name = self.request.get('parent_name')
+        try:
+            country = Country.all().filter("name =", parent_name).fetch(1)[0]
+        except IndexError:
+            return
 
-    def post(self):
-        data = StateForm(data=self.request.POST)
-        if data.is_valid():
-            model_object = data.save(commit=False)
-            model_object.put()
-            self.redirect('/')
-        else:
-            error(200)
-
-class HandleCities(webapp.RequestHandler):
-    def get(self):
-        state_key = self.request.get('state_key')
-        cities = getResponseData(modelClass=City,
-                                 ancestor_key=state_key)
-        if cities:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(cities))
-        else:
-            error(404)
-
-    def post(self):
-        name = self.request.get('city_name')
-        parent_key = self.request.get('parent_key')
-        key = newObject(
-            name=name,
-            parent_key=parent_key
-        )
+        state = State(name=name)
+        state.country = country
+        db.put(state)
         self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(key))
- 
+        self.response.out.write(simplejson.dumps('%s' % state.key()))
+
 class HandleCity(webapp.RequestHandler):
     def get(self):
-        key = self.request.get("key")
-        name = self.request.get("name")
-        city = None
-        if key:
-            city = db.get(key)
-        elif name:
-            city = getByName(name=name,
-                             modelClass=City)
-        if city:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(city))
-        else:
-            error(404)
-
-    def post(self):
-        data = CityForm(data=self.request.POST)
-        if data.is_valid():
-            model_object = data.save(commit=False)
-            model_object.put()
-            self.redirect('/')
-        else:
-            error(200)
-
-class HandleStores(webapp.RequestHandler):
-    def get(self):
-        city_key = self.request.get('city_key')
-        response_data = {}
-        query = Store.all()
-        if city_key:
-            query.ancestor(Key(city_key))
-
-        results = query.fetch(limit=1000)
-        for r in results:
-            response_data[r.key] = '%s \n %s' % (r.name,r.address)
-
-        if response_data:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(response_data))
-        else:
-            error(404)
-
-    def post(self):
-        description = self.request.get('store_description')
-        name, address = description.splitlines()
-        parent_key = self.request.get('parent_key')
-        key = newStore(
-            name=name,
-            address=address,
-            parent_key=parent_key
-        )
+        name = self.request.get('name')
+        parent_name = self.request.get('parent_name')
+        state = State.all().filter("name =", parent_name).fetch(1)[0]
+        city = City(name=name)
+        city.state = state
+        db.put(city)
         self.response.headers["Content-Type"] = "application/json"
-        self.response.write(simplejson.dumps(key))
- 
+        self.response.out.write(simplejson.dumps('%s' % city.key()))
+
 class HandleStore(webapp.RequestHandler):
     def get(self):
-        key = self.request.get("key")
-        name = self.request.get("name")
-        store = None
-        if key:
-            store = db.get(key)
-        elif name:
-            store = getByName(name=name,
-                              modelClass=Store)
-        if store:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(store))
-        else:
-            error(404)
+        name = self.request.get('name')
+        address = self.request.get('address')
+        parent_name = self.request.get('parent_name')
+        city = City.all().filter("name =", parent_name).fetch(1)[0]
+        store = Store(name=name,address=address)
+        store.city = city
+        db.put(store)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps('%s' % store.key()))
 
-    def post(self):
-        data = StoreForm(data=self.request.POST)
-        if data.is_valid():
-            model_object = data.save(commit=False)
-            model_object.put()
-            self.redirect('/')
-        else:
-            error(200)
- 
+
 class HandleProduct(webapp.RequestHandler):
     def get(self):
         key = self.request.get("key")
@@ -370,18 +220,129 @@ class HandleProduct(webapp.RequestHandler):
                                        modelClass=Product)
         if product:
             self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(product))
+            self.response.out.write(simplejson.dumps(product))
         else:
-            error(404)
+            self.error(404)
+
+
+class HandleIndex(webapp.RequestHandler):
+    def get(self):
+        self.response.out.write('<H1>ComPrices is used for Nokia S60 devices \
+to compare product prices!!</H1>')
+
+class HandleCountries(webapp.RequestHandler):
+    def get(self):
+        countries = getResponseData(modelClass=Country)
+        if countries:
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.out.write(simplejson.dumps(countries))
+        else:
+            self.error(404)
 
     def post(self):
-        data = ProductForm(data=self.request.POST)
-        if data.is_valid():
-            model_object = data.save(commit=False)
-            model_object.put()
-            self.redirect('/')
-        else:
-            error(200)
+        name = self.request.get('name')
+        country = Country(
+            name=name,
+        )
+        db.put(country)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps('%s' % country.key()))
+
+class HandleStates(webapp.RequestHandler):
+    def get(self):
+        country_key = self.request.get('key')
+        if not country_key:
+            self.error(400)
+
+        country = Country.get(country_key)
+        if not country:
+            self.error(404)
+
+        response_data = {}
+        for state in country.state_set:
+            response_data['%s' % state.key()] = state.name
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps(response_data))
+
+    def post(self):
+        name = self.request.get('name')
+        key = self.request.get('key')
+        state = State(
+            name=name,
+        )
+        country = Country.get(key)
+        if not country:
+            self.error(400)
+        state.country = country
+
+        db.put(state)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps('%s'%state.key()))
+
+class HandleCities(webapp.RequestHandler):
+    def get(self):
+        state_key = self.request.get('key')
+        if not state_key:
+            self.error(400)
+
+        state = State.get(state_key)
+        if not state:
+            self.error(404)
+
+        response_data = {}
+        for city in state.city_set:
+            response_data['%s' % city.key()] = city.name
+
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps(response_data))
+
+    def post(self):
+        name = self.request.get('name')
+        key = self.request.get('key')
+        city = City(
+            name=name,
+        )
+        state = State.get(key)
+        if not state:
+            self.error(400)
+        city.state = state
+
+        db.put(city)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps('%s'%city.key()))
+
+class HandleStores(webapp.RequestHandler):
+    def get(self):
+        city_key = self.request.get('key')
+        if not city_key:
+            self.error(400)
+        city = City.get(city_key)
+        if not city:
+            self.error(404)
+        response_data = {}
+        for store in city.store_set:
+            response_data['%s' % store.key()] = '%s \n %s' % (store.name,store.address)
+
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps(response_data))
+
+    def post(self):
+        description = self.request.get('name')
+        name, address = description.split('\n')
+        key = self.request.get('key')
+        store = Store(
+            name=name,
+            address=address,
+        )
+        city = City.get(key)
+        if not city:
+            self.error(400)
+        store.city = city
+
+        db.put(store)
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps('%s' % store.key()))
+
 
 class HandlePrices(webapp.RequestHandler):
     def get(self):
@@ -389,26 +350,30 @@ class HandlePrices(webapp.RequestHandler):
         barcode = self.request.get('barcode')
         price = self.request.get('price')
         description = self.request.get('description')
-        store_key = self.request.get('store_key')
+        store_key = self.request.get('key')
         # A very simple validation
         try:
             barcode = int(barcode)
         except:
-            error(200)
+            self.error(400)
         try:
-            price = int(price)
+            price = float(price)
         except:
-            error(200)
+            self.error(400)
         if barcode <=0 or price <= 0:
-            error(200)
+            self.error(400)
+
+        store = Store.get(store_key)
+        if not store:
+            self.error(400)
 
         # Put product information in the datastore.
         product = Product(
             description=description,
             barcode=barcode,
             price=price,
-            store=Key(store_key)
         )
+        product.store = store
         db.put(product)
 
         # Find all(first 1000) prices for a product description.
@@ -416,30 +381,29 @@ class HandlePrices(webapp.RequestHandler):
         query.order('-price')
         # Alternative filter barcode, the description can differ from a store to
         # another. 
-        #query.filter('barcode =',barcode)
-        query.filter('description =',description)
-        results = query.fetch(limit=1000)
+        query.filter('barcode =',barcode)
+        results = query.fetch(limit=50)
         for p in results:
-            response_data.append([p.store.name,p.price])
+            response_data.append(('%s\n%s' % (p.store.name,p.store.address), unicode(p.price)))
 
-        if response_data:
-            self.response.headers["Content-Type"] = "application/json"
-            self.response.write(simplejson.dumps(response_data))
-        else:
-            error(404)
+        if not response_data:
+            self.error(404)
+
+        self.response.headers["Content-Type"] = "application/json"
+        self.response.out.write(simplejson.dumps(response_data))
 
 application = webapp.WSGIApplication(
-                                     [('/', HandleIndex),
-#                                      ('^country/', HandleCountry),
-#                                      ('^state/', HandleState),
-#                                      ('^city/', HandleCity),
-#                                      ('^store/', HandleStore),
-#                                      ('^product/', HandleProduct),
-                                      ('^countries/', HandleCountries),
-                                      ('^states/{country_key}/', HandleStates),
-                                      ('^cities/{state_key}/', HandleCities),
-                                      ('^stores/{city_key}/', HandleStores),
-                                      ('^prices/.*', HandlePrices),
+                                     [('/$', HandleIndex),
+                                      ('/country/(.*)/', HandleCountry),
+                                      ('/state/?', HandleState),
+                                      ('/teste/?', HandleTeste),
+                                      ('/city/?', HandleCity),
+                                      ('/store/?', HandleStore),
+                                      ('/countries/?', HandleCountries),
+                                      ('/states/?', HandleStates),
+                                      ('/cities/?', HandleCities),
+                                      ('/stores/?', HandleStores),
+                                      ('/prices/?', HandlePrices),
                                       ],
                                       debug=True)
 
