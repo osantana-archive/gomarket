@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 #  dataman.py
-#  gomarket
+#  comprices
 #
 #  Created by Osvaldo Santana on 2009-02-27.
 #  Copyright 2009 Triveos Tecnologia Ltda. All rights reserved.
@@ -17,9 +17,15 @@ import simplejson as json
 from skel import Connection
 from utils import verify_barcode
 
-DB_MODE = 'cf' # nf
-SERVER_URL = "http://192.168.1.105:8080"
+from default import TEST
 
+if TEST:
+    DB_MODE = 'nf'
+    SERVER_URL = "http://192.168.1.105:8080"
+else:
+    DB_MODE = 'cf'
+    SERVER_URL = "http://comprices.appspot.com"
+    
 class ConnectionError(Exception):
     pass
 
@@ -35,8 +41,6 @@ def _urlopen(path, args, method="get"):
     else:
         url = "%s/%s/" % (SERVER_URL, path)
 
-    print "Request:", url
-
     try:
         if method == "get":
             request = urllib.urlopen(url)
@@ -45,12 +49,8 @@ def _urlopen(path, args, method="get"):
 
         json_response = request.read()
 
-        print "JSON:", json_response
-
         try:
-            result = json.loads(json_response)
-            print "Response:", repr(result)
-            return result
+            return json.loads(json_response)
         except ValueError:
             raise ConnectionError(u"Invalid server response")
         request.close()
@@ -118,14 +118,14 @@ class Entities(object):
             else:
                 try:
                     unicode_key = k.decode('utf-8')
-                except:
+                except UnicodeError:
                     unicode_key = k.decode('latin1')
             if isinstance(v, unicode):
                 unicode_value = v
             else:
                 try:
                     unicode_value = v.decode('utf-8')
-                except:
+                except UnicodeError:
                     unicode_value = v.decode('latin1')
             object_list.append( (unicode_key, unicode_value) )
         object_list.sort(lambda x, y: cmp(x[1], y[1]))

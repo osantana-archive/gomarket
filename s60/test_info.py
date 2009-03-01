@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # 
 #  test_info.py
-#  gomarket
+#  comprices
 #  
 #  Created by Osvaldo Santana on 2009-02-27.
 #  Copyright 2009 Triveos Tecnologia Ltda. All rights reserved.

@@ -1,7 +1,7 @@
 #!/bin/bash
 # 
 #  create_sis.sh
-#  gomarket
+#  comprices
 #  
 #  Created by Osvaldo Santana on 2009-02-27.
 #  Copyright 2009 Triveos Tecnologia Ltda. All rights reserved.
@@ -30,11 +30,11 @@ fi
 DESTDEV=$3
 BUILDDIR="$SCRIPTDIR/pkg"
 
-APP_FILENAME="gomarket"
-APP_NAME="GoMarket"
+APP_FILENAME="comprices"
+APP_NAME="ComPrices"
 APP_VERSION="0.1.0"
-APP_CAPTION="GoMarket"
-APP_SHORTCAPTION="GoMarket"
+APP_CAPTION="ComPrices"
+APP_SHORTCAPTION="ComPrices"
 APP_VENDOR="Triveos Tecnologia Ltda."
 APP_UID="$($SCRIPTDIR/ensymble.py genuid $APP_NAME | cut -d\  -f2)"
 SIGN_CERT="$HOME/.ssh/s60_cert.cer"
@@ -58,7 +58,6 @@ $SCRIPTDIR/ensymble.py py2sis \
     --shortcaption="$APP_SHORTCAPTION" \
     --lang=EN \
     --extrasdir=root \
-    --drive=C \
     --uid=$APP_UID \
     --icon=$RSCDIR/tiny_icon_final.svg \
     $BUILDDIR $SCRIPTDIR/build/$APP_FILENAME.sis
