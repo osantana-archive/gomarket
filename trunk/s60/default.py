@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # 
 #  default.py
-#  gomarket
+#  comprices
 #  
 #  Created by Osvaldo Santana on 2009-02-27.
 #  Copyright 2009 Triveos Tecnologia Ltda. All rights reserved.
@@ -9,8 +9,7 @@
 
 import os
 
-TEST = True
-
+TEST = False
 if TEST:
     import sys
     sys.path.append("E:\\Python")
@@ -21,7 +20,7 @@ import appuifw # pylint: disable-msg=F0401
 from skel import AppSkel
 from dataman import ConnectionError, InvalidSetting, DataManager
 
-APP_NAME = u"gomarket"
+APP_NAME = u"comprices"
 APP_VERSION = u"0.1"
 
 class EntityChooser(object):
@@ -116,7 +115,7 @@ class MainApp(AppSkel):
     TAB_RESULTS = 1
 
     def __init__(self):
-        self.title = u"GoMarket"
+        self.title = u"ComPrices"
         self.dataman = DataManager(self.get_datadir(APP_NAME))
 
         self.settings_list = []
@@ -205,7 +204,7 @@ class MainApp(AppSkel):
         if state_name is None:
             return
         try:
-            return dataman.states.add(country_name)
+            return dataman.states.add(state_name)
         except ConnectionError, e:
             appuifw.note(unicode(e), 'error')
 
@@ -214,7 +213,7 @@ class MainApp(AppSkel):
         if city_name is None:
             return
         try:
-            return dataman.cities.add(country_name)
+            return dataman.cities.add(city_name)
         except ConnectionError, e:
             appuifw.note(unicode(e), 'error')
 
@@ -224,7 +223,7 @@ class MainApp(AppSkel):
         except ValueError:
             return
         try:
-            return dataman.stores.add(country_name)
+            return dataman.stores.add(store_name + u'\n' + store_address)
         except ConnectionError, e:
             appuifw.note(unicode(e), 'error')
 
@@ -323,7 +322,7 @@ class MainApp(AppSkel):
         else:
             icon = os.path.join(self.get_datadir(APP_NAME), "icon.png")
         self.about_dialog(
-            name=u"GoMarket",
+            name=u"ComPrices",
             version=u"0.1",
             year=u'2009',
             authors=[ u"Osvaldo Santana Neto", u"Ramiro Luz" ],
