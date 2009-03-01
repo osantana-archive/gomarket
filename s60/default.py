@@ -9,10 +9,7 @@
 
 import os
 
-TEST = False
-if TEST:
-    import sys
-    sys.path.append("E:\\Python")
+import sys
 
 import e32     # pylint: disable-msg=F0401
 import appuifw # pylint: disable-msg=F0401
@@ -125,7 +122,7 @@ class MainApp(AppSkel):
         self.results_list = self.create_results_list()
         self.results_lb = appuifw.Listbox(self.results_list[0], self.tab_callback_results)
 
-        super(MainApp, self).__init__(TEST)
+        super(MainApp, self).__init__()
 
     def setup(self):
         if self.dataman.stores.get():
@@ -317,10 +314,7 @@ class MainApp(AppSkel):
         return True
 
     def menu_about(self):
-        if TEST:
-            icon = "E:\\Python\\icon.png"
-        else:
-            icon = os.path.join(self.get_datadir(APP_NAME), "icon.png")
+        icon = os.path.join(self.get_datadir(APP_NAME), "icon.png")
         self.about_dialog(
             name=u"ComPrices",
             version=u"0.1",
