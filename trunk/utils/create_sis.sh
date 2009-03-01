@@ -40,6 +40,7 @@ APP_UID="$($SCRIPTDIR/ensymble.py genuid $APP_NAME | cut -d\  -f2)"
 SIGN_CERT="$HOME/.ssh/s60_cert.cer"
 SIGN_KEY="$HOME/.ssh/s60_key.key"
 CAPS="NetworkServices+ReadUserData+WriteUserData+LocalServices+UserEnvironment"
+
 rm -rf $BUILDDIR
 mkdir -p $BUILDDIR/root/data/$APP_FILENAME/
 cp $SRCDIR/*.py $BUILDDIR/

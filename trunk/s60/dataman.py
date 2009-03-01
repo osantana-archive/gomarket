@@ -17,14 +17,8 @@ import simplejson as json
 from skel import Connection
 from utils import verify_barcode
 
-from default import TEST
-
-if TEST:
-    DB_MODE = 'nf'
-    SERVER_URL = "http://192.168.1.105:8080"
-else:
-    DB_MODE = 'cf'
-    SERVER_URL = "http://comprices.appspot.com"
+DB_MODE = 'cf'
+SERVER_URL = "http://comprices.appspot.com"
     
 class ConnectionError(Exception):
     pass

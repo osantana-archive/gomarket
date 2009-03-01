@@ -25,9 +25,7 @@ class AppSkel(object):
 
     selected_tab = 0
 
-    def __init__(self, testing=False):
-        self._testing = testing
-        
+    def __init__(self):
         # initialization
         self._mainlock = e32.Ao_lock()
         self._about_lock = e32.Ao_lock()
@@ -185,8 +183,7 @@ class AppSkel(object):
         if not self.confirm_exit():
             return
         appuifw.app.set_tabs([], None)
-        if not self._testing:
-            appuifw.app.set_exit()
+        appuifw.app.set_exit()
         self._mainlock.signal()
 
     def get_datadir(self, appname):
