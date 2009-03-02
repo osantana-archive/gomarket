@@ -227,8 +227,16 @@ class HandleProduct(webapp.RequestHandler):
 
 class HandleIndex(webapp.RequestHandler):
     def get(self):
-        self.response.out.write('<H1>ComPrices is used for Nokia S60 devices \
-to compare product prices!!</H1>')
+        self.response.out.write('''<html>
+    <body>
+        <div align=center>
+          <img src="/static/banner.png" border="0" alternate="Comprices banner">
+          <h1>ComPrices is used for Nokia S60 devices to compare product prices!!</h1>
+          <p>The project was first named gomarket, so you can find the source code in the google code website, <a href="http://code.google.com/p/gomarket">ComPrices Project Site</a>. You can download the installer for S60, with or without the python interpreter <a href="http://code.google.com/p/gomarket/downloads/list">here</a>.</p>
+        </div>
+    </body>
+</html>
+''')
 
 class HandleCountries(webapp.RequestHandler):
     def get(self):
@@ -346,7 +354,6 @@ class HandleStores(webapp.RequestHandler):
 
 class HandlePrices(webapp.RequestHandler):
     def get(self):
-        response_data = []
         barcode = self.request.get('barcode')
         price = self.request.get('price')
         description = self.request.get('description')
@@ -375,17 +382,22 @@ class HandlePrices(webapp.RequestHandler):
         )
         product.store = store
         db.put(product)
-
-        # Find all(first 1000) prices for a product description.
-        query = Product.all()
-        query.order('-price')
-        # Alternative filter barcode, the description can differ from a store to
-        # another. 
-        query.filter('barcode =',barcode)
-        results = query.fetch(limit=50)
-        for p in results:
-            response_data.append(('%s\n%s' % (p.store.name,p.store.address), unicode(p.price)))
-
+        
+        # Search prices based on the barcode and the city(store city) sent by the client.
+        store_set = store.city.store_set
+        store_keys = []
+        for store in store_set:
+            store_keys.append(store.key())
+        product_query = Product.all()
+        product_query.filter('store IN', store_keys)
+        product_query.filter('barcode =',barcode)
+        product_query.order('price')
+        product_set = product_query.fetch(50)
+        response_data = []
+        for product in product_set:
+            response_data.append(('%s\n%s' % (product.store.name,
+                                              product.store.address), 
+                                  unicode(product.price)))
         if not response_data:
             self.error(404)
 
@@ -394,11 +406,11 @@ class HandlePrices(webapp.RequestHandler):
 
 application = webapp.WSGIApplication(
                                      [('/$', HandleIndex),
-                                      ('/country/(.*)/', HandleCountry),
-                                      ('/state/?', HandleState),
-                                      ('/teste/?', HandleTeste),
-                                      ('/city/?', HandleCity),
-                                      ('/store/?', HandleStore),
+#                                      ('/country/(.*)/', HandleCountry),
+#                                      ('/state/?', HandleState),
+#                                      ('/teste/?', HandleTeste),
+#                                      ('/city/?', HandleCity),
+#                                      ('/store/?', HandleStore),
                                       ('/countries/?', HandleCountries),
                                       ('/states/?', HandleStates),
                                       ('/cities/?', HandleCities),
