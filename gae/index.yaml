@@ -17,14 +17,14 @@ indexes:
   - name: price
     direction: desc
 
-# Used 4 times in query history.
+# Unused in query history -- copied from input.
 - kind: Product
   properties:
   - name: barcode
   - name: store
   - name: price
 
-# Used 2 times in query history.
+# Unused in query history -- copied from input.
 - kind: Product
   properties:
   - name: barcode
@@ -40,13 +40,13 @@ indexes:
   - name: price
     direction: desc
 
-# Used once in query history.
+# Unused in query history -- copied from input.
 - kind: Product
   properties:
   - name: store
   - name: price
 
-# Used 2 times in query history.
+# Unused in query history -- copied from input.
 - kind: Product
   properties:
   - name: store.city
