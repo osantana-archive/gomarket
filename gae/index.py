@@ -230,14 +230,37 @@ class HandleProduct(webapp.RequestHandler):
 class HandleIndex(webapp.RequestHandler):
     def get(self):
         self.response.out.write('''<html>
+    <title>Comprices - appengine</title>
     <body>
         <div id="about" align="center">
         <table border="0">
           <tr>
-            <td width="474">
-              <img src="/static/banner.png" border="0" alternate="Comprices banner">
-              <h1>ComPrices is used for Nokia S60 devices to compare product prices!!</h1>
-              <p align="left">The project was first named gomarket, so you can find the source code in the google code website, <a href="http://code.google.com/p/gomarket">ComPrices Project Site</a>. You can download the installer for S60, with or without the python interpreter <a href="http://code.google.com/p/gomarket/downloads/list">here</a>.</p>
+            <td width="420">
+              <div id="banner" class="image" align="center"><img src="/static/banner.png" border="0" alternate="Comprices banner"></div>
+              <p align="left">
+                <b>ComPrices is used for Nokia S60 devices to compare product prices!!</b>
+              </p>
+              <p align="left">
+                The project was first named gomarket, so you can find the source code in the google code website, <a href="http://code.google.com/p/gomarket">ComPrices Project Site</a>.</p>
+              <p align="left">
+                You can download the installer for S60, <a href="http://gomarket.googlecode.com/files/comprices_bundle.sis">with</a> or <a href="http://gomarket.googlecode.com/files/comprices.sis">without</a>(in this case, the python interpreter must be installed in your device).<br />
+                If you want, there is a zip file with sources and the two installer above <a href="http://gomarket.googlecode.com/files/comprices.zip">here</a>. The full list off downloads is <a href="http://code.google.com/p/gomarket/downloads/list">here</a>.<br />
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              Package with sources, resources and SIS packages 761 KB. - [ <a href="http://gomarket.googlecode.com/files/comprices.zip">comprices.zip</a> ]
+            </td>
+          </tr>
+          <tr>
+            <td>
+              ComPrices without Python 35.3 KB. - [ <a href="http://gomarket.googlecode.com/files/comprices.sis">comprices.sis</a> ]
+            </td>
+          </tr>
+          <tr>
+            <td>
+              ComPrices Package with Python 607 KB - [ <a href="http://gomarket.googlecode.com/files/comprices_bundle.sis">comprices_bundle.sis</a> ]
             </td>
           </tr>
         </table>
