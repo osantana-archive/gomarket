@@ -36,6 +36,8 @@ class Product(db.Model):
     description = db.StringProperty()
     barcode = db.IntegerProperty()
     price = db.FloatProperty()
+    last_update = db.DateTimeProperty(auto_now=True)
+    creation_date = db.DateTimeProperty(auto_now_add=True)
     store = db.ReferenceProperty(Store)
 
 # Functions used in various handlers.
@@ -229,10 +231,16 @@ class HandleIndex(webapp.RequestHandler):
     def get(self):
         self.response.out.write('''<html>
     <body>
-        <div align=center>
-          <img src="/static/banner.png" border="0" alternate="Comprices banner">
-          <h1>ComPrices is used for Nokia S60 devices to compare product prices!!</h1>
-          <p>The project was first named gomarket, so you can find the source code in the google code website, <a href="http://code.google.com/p/gomarket">ComPrices Project Site</a>. You can download the installer for S60, with or without the python interpreter <a href="http://code.google.com/p/gomarket/downloads/list">here</a>.</p>
+        <div id="about" align="center">
+        <table border="0">
+          <tr>
+            <td width="474">
+              <img src="/static/banner.png" border="0" alternate="Comprices banner">
+              <h1>ComPrices is used for Nokia S60 devices to compare product prices!!</h1>
+              <p align="left">The project was first named gomarket, so you can find the source code in the google code website, <a href="http://code.google.com/p/gomarket">ComPrices Project Site</a>. You can download the installer for S60, with or without the python interpreter <a href="http://code.google.com/p/gomarket/downloads/list">here</a>.</p>
+            </td>
+          </tr>
+        </table>
         </div>
     </body>
 </html>
